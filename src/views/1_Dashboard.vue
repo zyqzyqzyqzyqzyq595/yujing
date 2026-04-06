@@ -164,7 +164,25 @@
               </div>
             </div>
 
-            <div class="config-actions">
+<div class="config-actions flex-align-center gap-12">
+              <div class="flex-align-center gap-8" style="border-right: 1px solid rgba(28, 61, 144, 0.1); padding-right: 12px;">
+                <span class="form-label" style="font-size: 13px;" :class="{ 'text-muted': warningType === 'auto' }">设置目标:</span>
+                <select v-model="configTargetLevel" :disabled="warningType === 'auto'" class="breathing-select" style="width: 85px; padding: 4px 10px !important;">
+                  <option value="global">全局</option>
+                  <option value="region">区域</option>
+                  <option value="line">监测线</option>
+                  <option value="point">监测点</option>
+                </select>
+                <select v-if="configTargetLevel === 'region'" v-model="configTargetValue" :disabled="warningType === 'auto'" class="breathing-select" style="width: 95px; padding: 4px 10px !important;">
+                  <option v-for="r in allRegions" :key="r" :value="r">{{r}}</option>
+                </select>
+                <select v-if="configTargetLevel === 'line'" v-model="configTargetValue" :disabled="warningType === 'auto'" class="breathing-select" style="width: 95px; padding: 4px 10px !important;">
+                  <option v-for="l in allLines" :key="l" :value="l">{{l}}</option>
+                </select>
+                <select v-if="configTargetLevel === 'point'" v-model="configTargetValue" :disabled="warningType === 'auto'" class="breathing-select" style="width: 105px; padding: 4px 10px !important;">
+                  <option v-for="pt in pointsForActiveTab" :key="pt.id" :value="pt.id">{{pt.id}}</option>
+                </select>
+              </div>
               <button class="primary-btn" @click="handleSave" :disabled="warningType === 'auto'">保存参数</button>
             </div>
           </div>
@@ -852,11 +870,95 @@ const handleQuery = () => {
   initECharts();
 };
 
-const handleSave = () => {
-  if (warningType.value === 'threshold') {
-    window.alert('阈值设置成功');
+// ================= 新增：预警阈值设置目标选择与层级覆盖逻辑 =================
+const configTargetLevel = ref('global'); // 当前选择的层级：全局、区域、线、点
+const configTargetValue = ref(''); // 选中的具体名称
+
+// 根据当前选中的模块 (GNSS/雷达/深部/应力) 过滤出对应的测点列表供下拉框使用
+const pointsForActiveTab = computed(() => {
+  const typeMap = { 'GNSS': 'GNSS', '雷达监测': 'RADAR', '深部位移': 'DEEP', '应力监测': 'STRESS' };
+  const t = typeMap[activeTab.value];
+  return globalPointsMeta.value.filter(p => p.type.includes(t));
+});
+
+// 监听层级或模块 Tab 变化，自动重置选中值
+watch([configTargetLevel, activeTab], () => {
+  if (configTargetLevel.value === 'region') configTargetValue.value = allRegions[0];
+  else if (configTargetLevel.value === 'line') configTargetValue.value = allLines[0];
+  else if (configTargetLevel.value === 'point') {
+    configTargetValue.value = pointsForActiveTab.value.length > 0 ? pointsForActiveTab.value[0].id : '';
+  } else {
+    configTargetValue.value = '';
   }
+});
+
+// 存储已保存的阈值配置字典，用于检查冲突
+const savedThresholds = reactive({
+  'GNSS': { region: {}, line: {}, point: {} },
+  '雷达监测': { region: {}, line: {}, point: {} },
+  '深部位移': { region: {}, line: {}, point: {} },
+  '应力监测': { region: {}, line: {}, point: {} }
+});
+
+// 全新重写的保存逻辑 (带覆盖提示)
+const handleSave = () => {
+  if (warningType.value === 'auto') return;
+
+  const tab = activeTab.value;
+  const level = configTargetLevel.value;
+  const target = configTargetValue.value;
+  let conflictMsg = '';
+
+  const relevantPoints = pointsForActiveTab.value; // 当前模块下的所有测点数据
+
+  // 1. 冲突检测逻辑：检查是否覆盖了更具体的底层级设置
+  if (level === 'global') {
+    const hasRegion = Object.keys(savedThresholds[tab].region).length > 0;
+    const hasLine = Object.keys(savedThresholds[tab].line).length > 0;
+    const hasPoint = Object.keys(savedThresholds[tab].point).length > 0;
+    if (hasRegion || hasLine || hasPoint) {
+      conflictMsg = `【${tab}】模块下已存在特定区域、监测线或监测点的独立阈值设置。保存全局参数将覆盖并清空这些单独的设置，是否继续？`;
+    }
+  } else if (level === 'region') {
+    const ptsInRegion = relevantPoints.filter(p => p.region === target).map(p => p.id);
+    const pointConflicts = ptsInRegion.filter(pid => savedThresholds[tab].point[pid]);
+    if (pointConflicts.length > 0) {
+      conflictMsg = `该区域（${target}）内已有 ${pointConflicts.length} 个监测点被单独设置了阈值。保存区域阈值将覆盖这些测点的单独设置，是否继续？`;
+    }
+  } else if (level === 'line') {
+    const ptsInLine = relevantPoints.filter(p => p.line === target).map(p => p.id);
+    const pointConflicts = ptsInLine.filter(pid => savedThresholds[tab].point[pid]);
+    if (pointConflicts.length > 0) {
+      conflictMsg = `该监测线（${target}）内已有 ${pointConflicts.length} 个监测点被单独设置了阈值。保存监测线阈值将覆盖这些测点的单独设置，是否继续？`;
+    }
+  }
+
+  // 2. 处理覆盖确认与旧数据清理
+  if (conflictMsg) {
+    if (!window.confirm(conflictMsg)) return; // 用户点击了“取消”
+
+    if (level === 'global') {
+      savedThresholds[tab].region = {};
+      savedThresholds[tab].line = {};
+      savedThresholds[tab].point = {};
+    } else if (level === 'region') {
+      const ptsInRegion = relevantPoints.filter(p => p.region === target).map(p => p.id);
+      ptsInRegion.forEach(pid => delete savedThresholds[tab].point[pid]);
+    } else if (level === 'line') {
+      const ptsInLine = relevantPoints.filter(p => p.line === target).map(p => p.id);
+      ptsInLine.forEach(pid => delete savedThresholds[tab].point[pid]);
+    }
+  }
+
+  // 3. 写入当前新的配置记录
+  if (level !== 'global') {
+    savedThresholds[tab][level][target] = true;
+  }
+
+  const targetName = level === 'global' ? '全局' : target;
+  window.alert(`✅ 【${tab}】针对 [ ${targetName} ] 的预警阈值设置成功！`);
 };
+// =======================================================================
 
 onMounted(() => {
   scene = new THREE.Scene();

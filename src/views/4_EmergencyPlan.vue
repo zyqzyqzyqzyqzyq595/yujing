@@ -1,20 +1,5 @@
 <template>
   <div class="view-page emergency-page">
-    <div class="page-hero">
-      <div>
-        <p class="eyebrow">Emergency Command Demo</p>
-        <h2 class="page-title">应急预案与指挥控制</h2>
-        <p class="page-subtitle">
-          根据预警等级自动匹配处置预案，并通过可视化看板展示人员、车辆和设备的调度路线。
-        </p>
-      </div>
-      <div class="hero-actions">
-        <button class="ghost-btn">查看预案库</button>
-        <button class="primary-btn" @click="launchPlan">
-          {{ launched ? '已启动演示预案' : '一键启动预案' }}
-        </button>
-      </div>
-    </div>
 
     <section class="panel command-board">
       <div class="panel-head">
@@ -76,150 +61,53 @@
       </div>
     </section>
 
-    <section class="overview-grid">
-      <article class="panel featured-plan">
-        <div class="panel-head featured-plan-head">
-          <div class="panel-head-actions">
-            <button class="ghost-btn">查看预案库</button>
-            <button class="primary-btn" @click="launchPlan">
-              {{ launched ? '已启动演示预案' : '一键启动预案' }}
-            </button>
-            <span class="badge warning">橙色预警</span>
-          </div>
-          <div>
-            <p class="panel-kicker">当前匹配结果</p>
-            <h3>北帮边坡滑移橙色预警处置预案</h3>
-          </div>
-          <span class="badge warning">橙色预警</span>
+    <section class="panel smart-plan-panel">
+      <div class="panel-head smart-plan-head">
+        <div>
+          <p class="panel-kicker">智能路径建议</p>
         </div>
-        <div class="featured-plan-layout">
-          <div>
-            <div class="plan-meta">
-              <div>
-                <span>触发区域</span>
-                <strong>北帮 3 号台阶至运输道路</strong>
-              </div>
-              <div>
-                <span>推荐响应级别</span>
-                <strong>II 级响应</strong>
-              </div>
-              <div>
-                <span>影响对象</span>
-                <strong>道路、排土设备、现场人员</strong>
-              </div>
-            </div>
-            <div class="action-flow">
-              <div
-                v-for="item in responseActions"
-                :key="item.id"
-                class="flow-item"
-                :class="item.state"
-              >
-                <div class="flow-index">{{ item.id }}</div>
-                <div class="flow-content">
-                  <strong>{{ item.title }}</strong>
-                  <p>{{ item.desc }}</p>
-                </div>
-                <span class="flow-state">{{ item.label }}</span>
-              </div>
-            </div>
-          </div>
-
-          <aside class="route-summary">
-            <div class="route-summary-head">
-              <p class="panel-kicker">路线规划说明</p>
-              <h4>预案调度文字描述</h4>
-            </div>
-            <div class="route-summary-list">
-              <div v-for="item in routePlans" :key="item.title" class="route-summary-item">
-                <strong>{{ item.title }}</strong>
-                <p>{{ item.text }}</p>
-              </div>
-            </div>
-          </aside>
-        </div>
-      </article>
-    </section>
-
-    <section class="detail-grid">
-      <article class="panel progress-panel">
-        <div class="panel-head">
-          <div>
-            <p class="panel-kicker">处置进度</p>
-            <h3>指令执行闭环</h3>
-          </div>
-          <span class="badge success">完成率 67%</span>
-        </div>
-        <div class="timeline">
-          <div
-            v-for="task in tasks"
-            :key="task.name"
-            class="timeline-item"
-            :class="task.state"
+        <div class="smart-plan-actions">
+          <button
+            class="primary-btn smart-plan-trigger"
+            :class="{ launched }"
+            :disabled="launched"
+            @click="launchPlan"
           >
-            <div class="timeline-track"></div>
-            <div class="timeline-body">
-              <div class="timeline-top">
-                <strong>{{ task.name }}</strong>
-                <span>{{ task.owner }}</span>
-              </div>
-              <p>{{ task.note }}</p>
-            </div>
-          </div>
-        </div>
-      </article>
-
-      <article class="panel resource-panel">
-        <div class="panel-head">
-          <div>
-            <p class="panel-kicker">资源状态</p>
-            <h3>人员与设备调度</h3>
-          </div>
-          <span class="badge neutral">实时示意</span>
-        </div>
-        <div class="resource-cards">
-          <div v-for="card in resources" :key="card.title" class="resource-card">
-            <span>{{ card.title }}</span>
-            <strong>{{ card.value }}</strong>
-            <p>{{ card.note }}</p>
-          </div>
-        </div>
-      </article>
-
-      <article class="panel feedback-panel">
-        <div class="panel-head">
-          <div>
-            <p class="panel-kicker">现场反馈</p>
-            <h3>移动端回传演示</h3>
-          </div>
-          <button class="ghost-btn small" @click="toggleFeed">
-            {{ feedExpanded ? '收起详情' : '展开详情' }}
+            {{ launched ? '预案已启动' : '启动预案' }}
           </button>
+          <span class="badge" :class="launched ? 'success' : 'neutral'">
+            {{ launched ? '已下发人员与车辆路径建议' : '基于当前预警自动生成' }}
+          </span>
         </div>
-        <div class="feedback-list">
-          <div v-for="item in feedbacks" :key="item.unit" class="feedback-item">
-            <div>
-              <strong>{{ item.unit }}</strong>
-              <p>{{ item.text }}</p>
+      </div>
+
+      <div class="smart-plan-grid">
+        <article
+          v-for="group in planRecommendations"
+          :key="group.key"
+          class="smart-plan-card"
+          :class="group.key"
+        >
+          <div class="smart-plan-card-head">
+            <p class="panel-kicker">{{ group.kicker }}</p>
+            <h4>{{ group.title }}</h4>
+          </div>
+
+          <div class="smart-plan-list">
+            <div v-for="item in group.items" :key="item.code" class="smart-plan-item">
+              <div class="smart-plan-row">
+                <strong>{{ item.code }}</strong>
+                <span class="smart-plan-route">{{ item.route }}</span>
+                <span>{{ item.position }}</span>
+                <span>{{ item.area }}</span>
+                <span>{{ item.type }}</span>
+                <span>{{ item.distance }}</span>
+              </div>
             </div>
-            <span class="badge" :class="item.level">{{ item.status }}</span>
           </div>
-        </div>
-        <div v-if="feedExpanded" class="feedback-extra">
-          <div class="snapshot-card">
-            <span>现场图片回传</span>
-            <div class="snapshot-placeholder">图片/视频占位</div>
-          </div>
-          <div class="snapshot-card">
-            <span>电子档案归集</span>
-            <div class="archive-lines">
-              <p>已归档指令 12 条</p>
-              <p>已回传素材 6 份</p>
-              <p>待确认隐患 1 项</p>
-            </div>
-          </div>
-        </div>
-      </article>
+        </article>
+      </div>
+
     </section>
   </div>
 </template>
@@ -229,10 +117,9 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 
-const launched = ref(false);
-const feedExpanded = ref(true);
 const threeContainer = ref(null);
 const selectedUnitCode = ref('P-07');
+const launched = ref(false);
 
 let renderer;
 let scene;
@@ -253,6 +140,31 @@ const commandUnits = [
 const sortedCommandUnits = computed(() =>
   [...commandUnits].sort((a, b) => Number.parseFloat(a.distance) - Number.parseFloat(b.distance))
 );
+
+const planRecommendations = computed(() => {
+  const personItems = commandUnits
+    .filter((item) => item.type.includes('人员') || item.type.includes('安全员'))
+    .slice(0, 3);
+  const vehicleItems = commandUnits
+    .filter((item) => item.type.includes('车辆') || item.type.includes('设备'))
+    .slice(0, 3);
+
+  return [
+    {
+      key: 'person',
+      kicker: '人员路线',
+      title: '人员疏导建议',
+      items: personItems
+    },
+    {
+      key: 'vehicle',
+      kicker: '车辆路线',
+      title: '车辆与设备建议',
+      items: vehicleItems
+    }
+  ];
+});
+
 
 const mapUnits = [
   { code: 'P-07', type: 'person', color: '#67d7ff', x: 32, z: 31, blink: true },
@@ -317,45 +229,12 @@ mapUnits.push(
   { code: 'EQ-14', type: 'equipment', color: '#79e2b0', x: -34, z: -38 }
 );
 
-const responseActions = [
-  { id: '01', title: '自动通知应急小组', desc: '企业微信、电话和广播同步推送预警详情与集结指令。', state: 'done', label: '已通知' },
-  { id: '02', title: '生成撤离工单', desc: '向北帮作业面和值守卡口自动派发撤离与封控任务。', state: 'active', label: '执行中' },
-  { id: '03', title: '联动设备与资源', desc: '调度排水泵、应急车辆与视频巡检资源前往指定位置。', state: 'pending', label: '待联动' }
-];
 
-const routePlans = [
-  { title: '人员疏散路线', text: '北帮 3 号台阶作业人员沿人员撤离线分段外撤，北侧作业面人员优先向安全通道移动，运输道路附近人员同步退出预警影响带。' },
-  { title: '车辆绕行路线', text: '运输车辆 T-05、T-11 由 2 号辅路和北侧救援通道改道，避开橙色预警区及其影响扩散边界。' },
-  { title: '设备撤离路线', text: 'EX-07 电铲退出作业面边界后沿设备撤离路线回收到安全待命区，等待调度中心确认复工。' },
-  { title: '封控与接应节点', text: '1 号卡口实施封控，北帮入口保留应急车辆通道，巡检人员在安全观测点完成复核并回传现场状态。' }
-];
 
-const tasks = [
-  { name: '危险区域停工与清场', owner: '调度中心 / 已签收', note: '北帮道路作业设备已停机，人员撤离至 2 号集结点。', state: 'done' },
-  { name: '封控运输道路与门禁', owner: '安环部 / 执行中', note: '1 号卡口正在设置拦截，预计 4 分钟完成。', state: 'active' },
-  { name: '现场复核与无人机巡查', owner: '巡检组 / 待出发', note: '等待气象窗口，准备进行二次影像复核。', state: 'pending' }
-];
 
-const resources = [
-  { title: '到位人员', value: '18 / 22', note: '4 人正在赶赴集结点' },
-  { title: '应急车辆', value: '3 辆', note: '2 辆已到达北帮道路入口' },
-  { title: '排水与照明', value: '5 套', note: '设备联动指令已生成' },
-  { title: '现场视频', value: '6 路', note: '其中 1 路切换至移动巡检视角' }
-];
 
-const feedbacks = [
-  { unit: '现场巡检组', text: '已确认裂缝区域周边无滞留人员，等待下一步巡检任务。', status: '已回传', level: 'success' },
-  { unit: '道路封控组', text: '卡口拦截杆已落下，运输车辆开始分流绕行。', status: '处理中', level: 'warning' },
-  { unit: '调度指挥台', text: '电子档案持续归集，准备生成本次应急过程记录。', status: '跟踪中', level: 'neutral' }
-];
 
-const launchPlan = () => {
-  launched.value = !launched.value;
-};
 
-const toggleFeed = () => {
-  feedExpanded.value = !feedExpanded.value;
-};
 
 const focusUnit = (code) => {
   selectedUnitCode.value = code;
@@ -365,6 +244,10 @@ const focusUnit = (code) => {
     camera.position.set(unit.x + 14, 86, unit.z + 12);
   }
   updateSelectionVisuals();
+};
+
+const launchPlan = () => {
+  launched.value = true;
 };
 
 const createSpotTexture = () => {
@@ -904,7 +787,6 @@ onUnmounted(() => {
   color: #16325c;
 }
 
-.page-hero,
 .panel {
   background: rgba(255, 255, 255, 0.94);
   border: 1px solid rgba(28, 61, 144, 0.08);
@@ -912,45 +794,11 @@ onUnmounted(() => {
   box-shadow: 0 18px 40px rgba(28, 61, 144, 0.08);
 }
 
-.page-hero {
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 24px 28px;
-  background:
-    linear-gradient(135deg, rgba(28, 61, 144, 0.08), rgba(89, 170, 255, 0.03)),
-    rgba(255, 255, 255, 0.94);
-}
-
-.eyebrow,
 .panel-kicker {
   font-size: 12px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: #6b86b4;
-}
-
-.page-title {
-  margin-top: 6px;
-  font-size: 32px;
-  color: #1c3d90;
-}
-
-.page-subtitle {
-  margin-top: 10px;
-  max-width: 700px;
-  line-height: 1.7;
-  color: #5d7192;
-}
-
-.hero-actions {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.page-hero .hero-actions {
-  display: none;
 }
 
 .primary-btn,
@@ -999,26 +847,6 @@ onUnmounted(() => {
   align-items: flex-start;
   gap: 12px;
   margin-bottom: 18px;
-}
-
-.featured-plan-head {
-  position: relative;
-  min-height: 96px;
-  padding-right: 440px;
-}
-
-.featured-plan-head > .badge.warning {
-  display: none;
-}
-
-.panel-head-actions {
-  position: absolute;
-  top: 0;
-  right: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 14px;
 }
 
 .command-board .panel-head {
@@ -1228,66 +1056,226 @@ onUnmounted(() => {
 .overview-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 18px;
+  gap: 14px;
 }
 
-.featured-plan-layout {
+.smart-plan-panel {
+  padding: 18px 20px 20px;
+}
+
+.smart-plan-head {
+  margin-bottom: 10px;
+}
+
+.smart-plan-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.smart-plan-trigger {
+  padding: 9px 18px;
+  box-shadow: 0 10px 20px rgba(28, 100, 242, 0.2);
+}
+
+.smart-plan-trigger:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.smart-plan-trigger.launched {
+  background: linear-gradient(135deg, #17b26a, #119b5f);
+  box-shadow: 0 10px 20px rgba(23, 178, 106, 0.24);
+}
+
+.smart-plan-grid {
   display: grid;
-  grid-template-columns: 1.2fr 0.8fr;
-  gap: 18px;
-  align-items: start;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 
-.detail-grid {
-  display: grid;
-  grid-template-columns: 1.1fr 0.9fr 0.95fr;
-  gap: 18px;
-}
-
-.plan-meta {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin-bottom: 18px;
-}
-
-.route-summary {
-  padding: 16px;
+.smart-plan-card {
+  min-height: 0;
+  padding: 14px;
   border-radius: 18px;
-  background: linear-gradient(180deg, #f8fbff, #f4f8ff);
   border: 1px solid rgba(28, 61, 144, 0.08);
+  background: linear-gradient(180deg, #fbfdff, #f4f8ff);
 }
 
-.route-summary-head h4 {
+.smart-plan-card.person {
+  box-shadow: inset 0 0 0 1px rgba(89, 216, 255, 0.08);
+}
+
+.smart-plan-card.vehicle {
+  box-shadow: inset 0 0 0 1px rgba(255, 209, 102, 0.12);
+}
+
+.smart-plan-card-head h4 {
   margin-top: 4px;
-  font-size: 18px;
+  font-size: 17px;
   color: #17376f;
 }
 
-.route-summary-list {
+.smart-plan-list {
   display: grid;
-  gap: 12px;
-  margin-top: 16px;
+  gap: 10px;
+  margin-top: 12px;
 }
 
-.route-summary-item {
-  padding: 14px 14px 14px 16px;
+.smart-plan-item {
+  padding: 10px 12px;
   border-radius: 14px;
-  background: #fff;
-  border-left: 4px solid #85c6f1;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(28, 61, 144, 0.07);
 }
 
-.route-summary-item strong {
-  display: block;
+.smart-plan-row {
+  display: grid;
+  grid-template-columns: 72px 1.2fr 1fr 1fr 0.7fr 0.6fr;
+  align-items: center;
+  gap: 10px;
+}
+
+.smart-plan-row strong {
   color: #1c3d90;
   font-size: 14px;
 }
 
-.route-summary-item p {
-  margin-top: 6px;
-  line-height: 1.7;
+.smart-plan-row span {
+  color: #4f678b;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.smart-plan-route {
+  color: #17376f;
+  font-weight: 600;
+}
+
+
+.compact-plan-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.14fr) minmax(320px, 0.86fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.compact-detail-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 0.8fr 0.95fr;
+  gap: 14px;
+}
+
+.compact-plan-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.compact-plan-meta > div {
+  min-height: 78px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #f8fbff, #f3f8ff);
+  border: 1px solid rgba(28, 61, 144, 0.08);
+}
+
+.compact-plan-meta span,
+.compact-resource-card span {
+  display: block;
+  font-size: 12px;
+  color: #6e86aa;
+}
+
+.compact-plan-meta strong,
+.compact-resource-card strong {
+  display: block;
+  margin-top: 8px;
+  color: #17376f;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.compact-action-flow {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.compact-flow-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  min-height: 138px;
+  padding: 12px;
+}
+
+.flow-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.compact-flow-item .flow-index {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.compact-flow-item strong,
+.compact-route-item strong,
+.compact-timeline-item strong,
+.feedback-main strong {
+  color: #17376f;
+  font-size: 14px;
+}
+
+.compact-flow-item p,
+.compact-route-item p,
+.compact-timeline-item p,
+.feedback-main p,
+.compact-resource-card p {
+  display: -webkit-box;
+  margin-top: 0;
+  overflow: hidden;
+  line-height: 1.55;
   color: #5f728f;
-  font-size: 13px;
+  font-size: 12px;
+  -webkit-box-orient: vertical;
+}
+
+.compact-flow-item p,
+.feedback-main p {
+  -webkit-line-clamp: 2;
+}
+
+.compact-route-summary {
+  padding: 14px;
+}
+
+.compact-route-head h4 {
+  margin-top: 2px;
+  font-size: 16px;
+}
+
+.compact-route-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.compact-route-item {
+  min-height: 96px;
+  padding: 12px 12px 12px 14px;
+}
+
+.compact-route-item p {
+  margin-top: 6px;
+  -webkit-line-clamp: 3;
 }
 
 .action-flow,
@@ -1335,7 +1323,11 @@ onUnmounted(() => {
 }
 
 .flow-state {
-  font-size: 12px;
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(28, 61, 144, 0.08);
+  font-size: 11px;
   color: #7388a7;
 }
 
@@ -1343,6 +1335,14 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: 20px 1fr;
   gap: 12px;
+}
+
+.compact-timeline {
+  gap: 8px;
+}
+
+.compact-timeline-item {
+  gap: 10px;
 }
 
 .timeline-track {
@@ -1380,6 +1380,15 @@ onUnmounted(() => {
   background: #f8fbff;
 }
 
+.compact-timeline-item .timeline-body {
+  padding: 12px 14px;
+}
+
+.compact-timeline-item p {
+  margin-top: 4px;
+  -webkit-line-clamp: 2;
+}
+
 .timeline-top {
   display: flex;
   justify-content: space-between;
@@ -1388,7 +1397,22 @@ onUnmounted(() => {
 }
 
 .timeline-top span {
+  flex-shrink: 0;
   color: #7086a7;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.compact-resource-cards {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.compact-resource-card {
+  min-height: 98px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #f8fbff;
 }
 
 .feedback-item {
@@ -1400,11 +1424,36 @@ onUnmounted(() => {
   background: #f8fbff;
 }
 
+.feedback-main {
+  min-width: 0;
+}
+
+.compact-feedback-list {
+  gap: 8px;
+}
+
+.compact-feedback-item {
+  align-items: flex-start;
+  padding: 12px 14px;
+}
+
+.compact-feedback-extra {
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  gap: 10px;
+  margin-top: 10px;
+}
+
 .feedback-extra {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
   margin-top: 12px;
+}
+
+.compact-evidence-card {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #f8fbff;
 }
 
 .snapshot-placeholder {
@@ -1419,6 +1468,12 @@ onUnmounted(() => {
   border: 1px dashed rgba(28, 61, 144, 0.18);
 }
 
+.compact-snapshot-placeholder {
+  min-height: 74px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
 .archive-lines {
   margin-top: 10px;
   display: grid;
@@ -1427,34 +1482,25 @@ onUnmounted(() => {
   font-size: 13px;
 }
 
+.compact-evidence-card .archive-lines {
+  margin-top: 8px;
+  gap: 6px;
+  font-size: 12px;
+}
+
 @media (max-width: 1200px) {
   .command-layout,
   .detail-grid,
-  .featured-plan-layout {
+  .compact-plan-shell {
     grid-template-columns: 1fr;
   }
 
   .sidebar-summary {
     grid-template-columns: 1fr;
   }
-
-  .featured-plan-head {
-    padding-right: 0;
-    min-height: 0;
-  }
-
-  .panel-head-actions {
-    position: static;
-    width: 100%;
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
 }
 
 @media (max-width: 768px) {
-  .page-hero {
-    flex-direction: column;
-  }
 
   .plan-meta,
   .feedback-extra,
@@ -1462,8 +1508,24 @@ onUnmounted(() => {
     grid-template-columns: 1fr;
   }
 
-  .page-title {
-    font-size: 26px;
+  .smart-plan-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .smart-plan-row {
+    grid-template-columns: 1fr;
+  }
+
+  .smart-plan-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .compact-action-flow,
+  .compact-route-grid,
+  .compact-resource-cards,
+  .compact-feedback-extra {
+    grid-template-columns: 1fr;
   }
 
   .map-board {
