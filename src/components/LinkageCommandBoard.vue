@@ -25,6 +25,7 @@
             <span>预警区域</span>
             <span>人员、车辆编号</span>
             <span>距离</span>
+            <span>响应状态</span>
           </div>
           <div
             v-for="item in sortedCommandUnits"
@@ -45,8 +46,43 @@
             <div class="unit-cell">
               <strong>{{ item.distance }}</strong>
             </div>
+            <div class="unit-cell">
+              <span class="response-pill" :class="item.response === 'responded' ? 'responded' : 'pending'">
+                {{ item.response === 'responded' ? '已响应' : '未响应' }}
+              </span>
+            </div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div class="linkage-control-strip">
+      <div class="control-metrics">
+        <div v-for="item in controlMetrics" :key="item.label" class="control-metric-card">
+          <span>{{ item.label }}</span>
+          <strong>{{ item.value }}</strong>
+        </div>
+      </div>
+      <div class="control-note-card">
+        <strong>联动模块与设备控制</strong>
+        <span>无人驾驶调度、广播门禁、视频轮巡和采掘设备控制已形成联动链路，当前优先限制高风险区域通行并保留应急通道。</span>
+      </div>
+    </div>
+
+    <div class="control-action-strip">
+      <div v-for="item in controlActions" :key="item.title" class="control-action-card">
+        <div class="control-action-top">
+          <strong>{{ item.title }}</strong>
+          <span class="response-pill" :class="item.stateClass">{{ item.state }}</span>
+        </div>
+        <p>{{ item.detail }}</p>
+      </div>
+    </div>
+
+    <div class="control-feedback-strip">
+      <div v-for="item in controlFeedback" :key="item.label" class="control-feedback-card">
+        <span>{{ item.label }}</span>
+        <strong>{{ item.value }}</strong>
       </div>
     </div>
   </section>
@@ -68,16 +104,56 @@ let animationId;
 let pointSprites = new Map();
 
 const commandUnits = [
-  { code: 'P-31', level: '橙色', area: '北帮 3 号台阶', position: '现场管控线', status: '值守中', distance: '64 m' },
-  { code: 'P-07', level: '橙色', area: '北帮 3 号台阶', position: '撤离路线 A', status: '撤离中', distance: '85 m' },
-  { code: 'EX-07', level: '橙色', area: '作业面边界', position: '设备撤离路线', status: '待停机', distance: '96 m' },
-  { code: 'P-23', level: '橙色', area: '北帮作业面', position: '撤离路线一段', status: '撤离中', distance: '108 m' },
-  { code: 'P-12', level: '橙色', area: '运输道路东侧', position: '撤离路线 B', status: '已确认', distance: '132 m' }
+  { code: 'P-31', level: '橙色', area: '北帮 3 号台阶', position: '现场管控线', status: '值守中', distance: '64 m', response: 'responded' },
+  { code: 'P-07', level: '橙色', area: '北帮 3 号台阶', position: '撤离路线 A', status: '撤离中', distance: '85 m', response: 'responded' },
+  { code: 'EX-07', level: '橙色', area: '作业面边坡', position: '设备撤离路线', status: '待停机', distance: '96 m', response: 'pending' },
+  { code: 'P-23', level: '橙色', area: '北帮作业面', position: '撤离路线一段', status: '撤离中', distance: '108 m', response: 'responded' },
+  { code: 'P-12', level: '橙色', area: '运输道路东侧', position: '撤离路线 B', status: '已确认', distance: '132 m', response: 'pending' }
 ];
 
 const sortedCommandUnits = computed(() =>
   [...commandUnits].sort((a, b) => Number.parseFloat(a.distance) - Number.parseFloat(b.distance))
 );
+
+const controlMetrics = computed(() => {
+  const respondedCount = commandUnits.filter((item) => item.response === 'responded').length;
+  const pendingCount = commandUnits.filter((item) => item.response === 'pending').length;
+
+  return [
+    { label: '已联动模块', value: '4 项' },
+    { label: '设备控制对象', value: '3 台' },
+    { label: '已响应目标', value: `${respondedCount} 个` },
+    { label: '待确认回执', value: `${pendingCount} 个` }
+  ];
+});
+
+const controlActions = [
+  {
+    title: '道路通行控制',
+    state: '已切换',
+    stateClass: 'responded',
+    detail: '北帮运输道路已进入限制通行模式，社会车辆与作业车辆分流。'
+  },
+  {
+    title: '采掘设备避让',
+    state: '执行中',
+    stateClass: 'pending',
+    detail: 'EX-07 已收到避让指令，沿设备撤离路线退出高风险边界。'
+  },
+  {
+    title: '广播与门禁',
+    state: '已联动',
+    stateClass: 'responded',
+    detail: '广播模板切换为橙色预警通告，1 号卡口保持只出不进。'
+  }
+];
+
+const controlFeedback = [
+  { label: '接口回执时间', value: '16:42:18' },
+  { label: '最近联动车辆', value: 'T-05 / T-11' },
+  { label: '最近控制设备', value: 'EX-07' },
+  { label: '视频轮巡状态', value: '高风险区域锁定' }
+];
 
 const mapUnits = [
   { code: 'P-31', type: 'person', color: '#67d7ff', x: 30, z: 19, blink: true },
@@ -573,7 +649,7 @@ onUnmounted(() => {
 }
 
 .board-table-linkage {
-  grid-template-columns: 0.82fr 1.18fr 1.1fr 0.78fr;
+  grid-template-columns: 0.8fr 1.1fr 1.05fr 0.72fr 0.78fr;
 }
 
 .table-head {
@@ -597,9 +673,146 @@ onUnmounted(() => {
   transform: translateY(-1px);
 }
 
+.response-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.response-pill.responded {
+  color: #1d8e5a;
+  background: #e7f8ee;
+}
+
+.response-pill.pending {
+  color: #d9781f;
+  background: #fff0df;
+}
+
+.linkage-control-strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.95fr);
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.control-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.control-metric-card,
+.control-note-card {
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(28, 61, 144, 0.08);
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.control-metric-card span,
+.control-note-card strong {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: #6f84aa;
+}
+
+.control-metric-card strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 18px;
+  color: #17376f;
+}
+
+.control-note-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.control-note-card span {
+  margin-top: 6px;
+  color: #4f678b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.control-action-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.control-action-card {
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(28, 61, 144, 0.08);
+  background: linear-gradient(180deg, #fbfdff, #f5f9ff);
+}
+
+.control-action-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.control-action-top strong {
+  color: #17376f;
+  font-size: 14px;
+}
+
+.control-action-card p {
+  margin-top: 8px;
+  color: #5f728f;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.control-feedback-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.control-feedback-card {
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(28, 61, 144, 0.08);
+  background: rgba(247, 250, 255, 0.96);
+}
+
+.control-feedback-card span {
+  display: block;
+  font-size: 11px;
+  color: #7a8fad;
+}
+
+.control-feedback-card strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  color: #17376f;
+}
+
 @media (max-width: 1200px) {
   .linkage-command-layout,
   .sidebar-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .linkage-control-strip,
+  .control-metrics,
+  .control-action-strip,
+  .control-feedback-strip {
     grid-template-columns: 1fr;
   }
 }
