@@ -18,9 +18,9 @@ import LayoutSidebar from './components/LayoutSidebar.vue';
 import AppBackground from './components/AppBackground.vue';
 
 // 导入 6 个滑坡预警核心模块
-import Dashboard from './views/1_Dashboard.vue';
+import Dashboard from './views/1_Dashboard/1_Dashboard.vue';
 import WorkOrder from './views/2_WorkOrder.vue';
-import DecisionSupport from './views/3_DecisionSupport.vue';
+import DecisionSupport from './views/3_DecisionSupport/3_DecisionSupport.vue';
 import EmergencyPlan from './views/4_EmergencyPlan.vue';
 import DeviceLinkage from './views/5_DeviceLinkage.vue';
 import Evaluation from './views/6_Evaluation.vue';
@@ -53,10 +53,14 @@ const handlePageChange = (id) => {
   display: flex;
   overflow: hidden;
 }
+/* 修改 App.vue 的这个类 */
 .content-viewport {
   flex: 1;
-  padding: 20px;
-  overflow-y: auto;
-  background: transparent; /* 关键：透出粒子背景 */
+  height: 100%;  /* ⬅️ 新增：强制锁定高度，防止被子元素拉扯或压缩 */
+  padding: 12px;
+  overflow-y: hidden; /* ⬅️ 修改：大屏页面不需要全局滚动条，改为 hidden */
+  background: transparent;
+  display: flex;
+  flex-direction: column;
 }
 </style>

@@ -1,0 +1,630 @@
+<div class="view-page emergency-page">
+    <section class="module-section">
+        <div class="section-header">
+            <h3 class="section-title">智能决策支持与专家知识库</h3>
+            <div class="top-tabs">
+                <div class="tab-item" :class="{ active: activeTab === 'decision' }" @click="activeTab = 'decision'">
+                    <span class="icon"></span> 智能决策支持
+                </div>
+                <div class="tab-item" :class="{ active: activeTab === 'expert' }" @click="activeTab = 'expert'">
+                    <span class="icon"></span> 专家知识库与案例推理
+                </div>
+            </div>
+        </div>
+
+        <div v-show="activeTab === 'decision'" class="tab-content decision-tab-content">
+            <div class="sys-card table-card">
+                <div class="card-header decision-table-header">
+                    <div class="header-left">
+                        <span class="card-title-text">预警记录管理</span>
+                        <span class="table-tip">支持新增处置单、记录查询与分析研判联动。</span>
+                    </div>
+                    <div class="header-actions">
+                        <!-- 筛选条件组（使用 flex 自动换行） -->
+                        <div class="filter-group">
+                            <select v-model="filterLevel" class="ctrl-input filter-select">
+                                <option value="">全部等级</option>
+                                <option value="红色">红色预警</option>
+                                <option value="橙色">橙色预警</option>
+                                <option value="黄色">黄色预警</option>
+                                <option value="蓝色">蓝色预警</option>
+                            </select>
+
+                            <div class="date-range">
+                                <input v-model="filterStartDate" class="ctrl-input" type="date" placeholder="开始日期" />
+                                <span class="date-separator">—</span>
+                                <input v-model="filterEndDate" class="ctrl-input" type="date" placeholder="结束日期" />
+                            </div>
+
+                            <input v-model="filterArea" class="ctrl-input filter-area" placeholder="预警区域" />
+
+                            <input v-model="decisionSearchKeyword" class="ctrl-input filter-keyword" placeholder="处理人员 / 滑坡类型" />
+
+                            <!-- 重置按钮（与筛选条件在同一组内） -->
+                            <button class="secondary-btn reset-btn" @click="resetFilters">
+                                <span class="reset-icon">↻</span> 重置
+                            </button>
+                        </div>
+
+                        <!-- 右侧操作按钮（删除、新增） -->
+                        <div class="action-group">
+                            <button class="secondary-btn" @click="deleteSelectedRecords">删除</button>
+                            <button class="primary-btn" @click="openCreateDisposalModal">新增处置单</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-container decision-table-container">
+                    <table class="custom-table">
+                        <thead>
+                        <tr>
+                            <th width="40px">
+                                <input type="checkbox" :checked="isAllSelected" @change="toggleSelectAll" />
+                            </th>
+                            <th>预警时间</th>
+                            <th>预警等级</th>
+                            <th>预警区域</th>
+                            <th>处理人员</th>
+                            <th>滑坡类型</th>
+                            <th>成因</th>
+                            <th>处置状态</th>
+                            <th>是否闭环</th>
+                            <th>后备处理人员</th>
+                            <th>分析研判</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr v-for="item in filteredDecisionWarningRecords" :key="item.id" :class="{ 'active-row': selectedDecisionRecord && selectedDecisionRecord.id === item.id }">
+                            <td>
+                                <input type="checkbox" :value="item.id" v-model="selectedRecordIds" />
+                            </td>
+                            <td>{{ item.time }}</td>
+                            <td>
+                                <span :class="['status-tag', item.levelClass]">{{ item.levelText }}</span>
+                            </td>
+                            <td>{{ item.area }}</td>
+                            <td>{{ item.staff }}</td>
+                            <td>{{ item.landslideType }}</td>
+                            <td>{{ item.cause }}</td>
+                            <td>
+                                <span :class="['status-tag', getDecisionStatusClass(item.status)]">{{ item.status }}</span>
+                            </td>
+                            <td>{{ item.isClosed }}</td>
+                            <td>{{ item.backupStaff }}</td>
+                            <td>
+                                <button class="primary-btn analysis-mini-btn" @click="handleDecisionAnalysis(item)">
+                                    分析
+                                </button>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div v-if="selectedDecisionRecord" class="analysis-layout">
+                <div class="sys-card analysis-left">
+                    <div class="card-header simple-header">
+                        <span class="card-title-text">知识库匹配（类比推理）</span>
+                        <span class="match-score">匹配度 {{ decisionAnalysisResult.matchScore }}</span>
+                    </div>
+
+                    <div class="record-base-info">
+                        <div class="info-item">
+                            <span class="info-label">当前研判区域</span>
+                            <span class="info-value">{{ selectedDecisionRecord.area }}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">滑坡类型</span>
+                            <span class="info-value">{{ selectedDecisionRecord.landslideType }}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">主要成因</span>
+                            <span class="info-value">{{ selectedDecisionRecord.cause }}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">当前处理人员</span>
+                            <span class="info-value">{{ selectedDecisionRecord.staff }}</span>
+                        </div>
+                    </div>
+
+                    <div class="match-case-card">
+                        <div class="case-title-row">
+                            <div class="case-title">{{ decisionAnalysisResult.caseName }}</div>
+                            <div class="case-subtitle">相似案例匹配结果</div>
+                        </div>
+
+                        <div class="case-button-list">
+                            <button class="case-detail-btn" @click="openDecisionDetail('治理区尺度（滑坡规模）', decisionAnalysisResult.scale)">
+                                治理区尺度（滑坡规模）
+                            </button>
+                            <button class="case-detail-btn" @click="openDecisionDetail('诱发原因', decisionAnalysisResult.triggerReason)">
+                                诱发原因
+                            </button>
+                            <button class="case-detail-btn" @click="openDecisionDetail('治理措施（包含治理工程量）', decisionAnalysisResult.measures)">
+                                治理措施（包含治理工程量）
+                            </button>
+                            <button class="case-detail-btn" @click="openDecisionDetail('滑坡模式', decisionAnalysisResult.mode)">
+                                滑坡模式
+                            </button>
+                        </div>
+
+                        <div class="case-summary-list">
+                            <div class="summary-row">
+                                <span class="summary-label">治理区尺度</span>
+                                <span class="summary-value">{{ decisionAnalysisResult.scale.summary }}</span>
+                            </div>
+                            <div class="summary-row">
+                                <span class="summary-label">诱发原因</span>
+                                <span class="summary-value">{{ decisionAnalysisResult.triggerReason.summary }}</span>
+                            </div>
+                            <div class="summary-row">
+                                <span class="summary-label">治理措施</span>
+                                <span class="summary-value">{{ decisionAnalysisResult.measures.summary }}</span>
+                            </div>
+                            <div class="summary-row">
+                                <span class="summary-label">滑坡模式</span>
+                                <span class="summary-value">{{ decisionAnalysisResult.mode.summary }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sys-card analysis-right">
+                    <div class="card-header simple-header">
+                        <span class="card-title-text">分析研判输出</span>
+                        <span class="result-flag">已生成</span>
+                    </div>
+
+                    <div class="result-card-list">
+                        <div class="result-card">
+                            <div class="result-title">治理方案意见</div>
+                            <div class="result-content">{{ decisionAnalysisResult.governanceOpinion }}</div>
+                        </div>
+                        <div class="result-card">
+                            <div class="result-title">力学机制研判</div>
+                            <div class="result-content">{{ decisionAnalysisResult.mechanism }}</div>
+                        </div>
+                        <div class="result-card">
+                            <div class="result-title">主导诱因</div>
+                            <div class="result-content">{{ decisionAnalysisResult.mainCause }}</div>
+                        </div>
+                        <div class="result-card">
+                            <div class="result-title">推荐处治方案方向</div>
+                            <div class="result-content">{{ decisionAnalysisResult.recommendation }}</div>
+                        </div>
+                    </div>
+
+                    <div class="report-actions report-actions-single">
+                        <button class="primary-btn" @click="exportDecisionReport">导出报告</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-overlay" v-if="showDecisionDetailModal">
+            <div class="modal-box decision-detail-modal">
+                <div class="modal-header">
+                    <h3>{{ decisionDetailTitle }}</h3>
+                    <span class="close-btn" @click="closeDecisionDetail">✖</span>
+                </div>
+                <div class="modal-body scrollable-modal">
+                    <div class="detail-block">
+                        <div class="detail-row-block">
+                            <div class="detail-block-title">摘要</div>
+                            <div class="detail-block-content">{{ decisionDetailData.summary }}</div>
+                        </div>
+
+                        <div class="detail-row-block" v-if="decisionDetailData.detail">
+                            <div class="detail-block-title">详细内容</div>
+                            <div class="detail-block-content">{{ decisionDetailData.detail }}</div>
+                        </div>
+
+                        <div class="detail-row-block" v-if="decisionDetailData.quantity">
+                            <div class="detail-block-title">工程量/规模</div>
+                            <div class="detail-block-content">{{ decisionDetailData.quantity }}</div>
+                        </div>
+
+                        <div class="detail-row-block" v-if="decisionDetailData.effect">
+                            <div class="detail-block-title">实施效果</div>
+                            <div class="detail-block-content">{{ decisionDetailData.effect }}</div>
+                        </div>
+
+                        <div class="detail-row-block" v-if="decisionDetailData.note">
+                            <div class="detail-block-title">备注</div>
+                            <div class="detail-block-content">{{ decisionDetailData.note }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="primary-btn" @click="closeDecisionDetail">关闭</button>
+                </div>
+            </div>
+        </div>
+        <div class="modal-overlay" v-if="showCreateDisposalModal">
+            <div class="modal-box rule-modal-box">
+                <div class="modal-header">
+                    <h3>新增处置单</h3>
+                    <span class="close-btn" @click="showCreateDisposalModal = false">✖</span>
+                </div>
+                <div class="modal-body scrollable-modal">
+                    <div class="form-section-title">基础信息</div>
+                    <div class="form-grid">
+                        <div class="form-item">
+                            <label>预警时间</label>
+                            <input v-model="decisionForm.time" class="ctrl-input" type="datetime-local" />
+                        </div>
+                        <div class="form-item">
+                            <label>预警等级</label>
+                            <select v-model="decisionForm.levelText" class="ctrl-input">
+                                <option>红色预警（一级）</option>
+                                <option>橙色预警（二级）</option>
+                                <option>黄色预警（三级）</option>
+                                <option>蓝色预警（四级）</option>
+                            </select>
+                        </div>
+                        <div class="form-item">
+                            <label>预警区域</label>
+                            <input v-model="decisionForm.area" class="ctrl-input" type="text" />
+                        </div>
+                        <div class="form-item">
+                            <label>处理人员</label>
+                            <input v-model="decisionForm.staff" class="ctrl-input" type="text" />
+                        </div>
+                        <div class="form-item">
+                            <label>滑坡类型</label>
+                            <input v-model="decisionForm.landslideType" class="ctrl-input" type="text" />
+                        </div>
+                        <div class="form-item">
+                            <label>成因</label>
+                            <input v-model="decisionForm.cause" class="ctrl-input" type="text" />
+                        </div>
+                        <div class="form-item">
+                            <label>处置状态</label>
+                            <select v-model="decisionForm.status" class="ctrl-input">
+                                <option>会商中</option>
+                                <option>处置中</option>
+                                <option>待复核</option>
+                                <option>已研判</option>
+                            </select>
+                        </div>
+                        <div class="form-item">
+                            <label>是否闭环</label>
+                            <select v-model="decisionForm.isClosed" class="ctrl-input">
+                                <option>否</option>
+                                <option>是</option>
+                            </select>
+                        </div>
+                        <div class="form-item full-width">
+                            <label>后备处理人员</label>
+                            <input v-model="decisionForm.backupStaff" class="ctrl-input" type="text" />
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="secondary-btn" @click="showCreateDisposalModal = false">取消</button>
+                    <button class="primary-btn" @click="submitDecisionDisposal">保存</button>
+                </div>
+            </div>
+        </div>
+
+<!--专家知识库与案例推理-->
+        <div v-show="activeTab === 'expert'" class="tab-content expert-library">
+            <div class="sys-card full-height-card">
+                <!-- 案例库区域 -->
+                <div class="knowledge-section">
+                    <div class="section-header-bar">
+                        <span class="section-icon">📋</span>
+                        <span class="section-name">治理方案案例库</span>
+                        <span class="section-count">{{ historicalCases.length }} 个案例</span>
+                        <div class="section-actions">
+                            <div class="filter-group" style="background: transparent; padding: 0; border: none;">
+                                <div class="search-box">
+                                    <input type="text" placeholder="检索案例编号、标签、条件..." class="ctrl-input search-input" />
+                                    <button class="secondary-btn icon-btn">🔍</button>
+                                </div>
+                            </div>
+                            <button class="primary-btn add-btn" @click="openAddCaseModal">+ 结构化录入新案例</button>
+                            
+                        </div>
+                    </div>
+
+                    <div class="table-container" v-show="caseSectionExpanded">
+                        <table class="custom-table">
+                            <thead>
+                            <tr>
+                                <th width="12%">案例编号</th>
+                                <th width="28%">多维标签体系 (特征画像)</th>
+                                <th width="20%">地质条件与诱因</th>
+                                <th width="20%">采用治理方案</th>
+                                <th width="10%">效果评估</th>
+                                <th width="10%">操作</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr v-for="(item, index) in historicalCases" :key="index">
+                                <td class="case-id">{{ item.id }}</td>
+                                <td>
+                                    <div class="tags-container">
+                                        <span class="dim-tag type" v-if="item.dim.type">{{ item.dim.type }}</span>
+                                        <span class="dim-tag rock" v-if="item.dim.rock">{{ item.dim.rock }}</span>
+                                        <span class="dim-tag trigger" v-if="item.dim.trigger">{{ item.dim.trigger }}</span>
+                                        <span class="dim-tag method" v-if="item.dim.method">{{ item.dim.method }}</span>
+                                    </div>
+                                </td>
+                                <td><div class="truncate-text" :title="item.condition">{{ item.condition }}</div></td>
+                                <td><div class="truncate-text" :title="item.plan">{{ item.plan }}</div></td>
+                                <td><span class="status-tag success">成功</span></td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <button class="text-btn" @click="handleViewCase(index)">查阅详情</button>
+                                        <button class="text-btn danger-text" @click="handleDeleteCase(index)">删除</button>
+                                    </div>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-overlay" v-if="showDecisionDetailModal">
+            <div class="modal-box decision-detail-modal">
+                <div class="modal-header">
+                    <h3>{{ decisionDetailTitle }}</h3>
+                    <span class="close-btn" @click="closeDecisionDetail">✖</span>
+                </div>
+                <div class="modal-body scrollable-modal">
+                    <div class="detail-block">
+                        <div class="detail-row-block">
+                            <div class="detail-block-title">摘要</div>
+                            <div class="detail-block-content">{{ decisionDetailData.summary }}</div>
+                        </div>
+
+                        <div class="detail-row-block" v-if="decisionDetailData.detail">
+                            <div class="detail-block-title">详细内容</div>
+                            <div class="detail-block-content">{{ decisionDetailData.detail }}</div>
+                        </div>
+
+                        <div class="detail-row-block" v-if="decisionDetailData.quantity">
+                            <div class="detail-block-title">工程量/规模</div>
+                            <div class="detail-block-content">{{ decisionDetailData.quantity }}</div>
+                        </div>
+
+                        <div class="detail-row-block" v-if="decisionDetailData.effect">
+                            <div class="detail-block-title">实施效果</div>
+                            <div class="detail-block-content">{{ decisionDetailData.effect }}</div>
+                        </div>
+
+                        <div class="detail-row-block" v-if="decisionDetailData.note">
+                            <div class="detail-block-title">备注</div>
+                            <div class="detail-block-content">{{ decisionDetailData.note }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="primary-btn" @click="closeDecisionDetail">关闭</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="modal-overlay" v-if="showModal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3>{{ isViewOnly ? '查看历史治理案例详情' : '录入成功治理案例 (标准化模板)' }}</h3>
+                <span class="close-btn" @click="showModal = false">✖</span>
+            </div>
+            <div class="modal-body scrollable-modal">
+                <!-- 基础信息 -->
+                <div class="form-section-title">基础信息</div>
+                <div class="form-grid">
+                    <div class="form-item full-width">
+                        <label>案例名称/编号 <span class="req" v-if="!isViewOnly">*</span></label>
+                        <input v-model="caseForm.id" type="text" class="ctrl-input" :disabled="isViewOnly" placeholder="例如：2025-01 南帮局部滑坡治理" />
+                    </div>
+                </div>
+
+                <!-- 滑坡特征参数（四列） -->
+                <div class="form-section-title">滑坡特征参数</div>
+                <div class="form-grid four-cols">
+                    <div class="form-item">
+                        <label>滑坡模式</label>
+                        <select v-model="caseForm.landslideMode" class="ctrl-input" :disabled="isViewOnly">
+                            <option>片帮</option>
+                            <option>圆弧滑动</option>
+                            <option>组合滑动</option>
+                        </select>
+                    </div>
+                    <div class="form-item">
+                        <label>潜在滑体高度 (m)</label>
+                        <input v-model="caseForm.slidingHeight" type="text" class="ctrl-input" :disabled="isViewOnly" placeholder="例如：45" />
+                    </div>
+                    <div class="form-item">
+                        <label>走向长度 (m)</label>
+                        <input v-model="caseForm.strikeLength" type="text" class="ctrl-input" :disabled="isViewOnly" placeholder="例如：120" />
+                    </div>
+                    <div class="form-item">
+                        <label>边坡角 (°)</label>
+                        <input v-model="caseForm.slopeAngle" type="text" class="ctrl-input" :disabled="isViewOnly" placeholder="例如：32" />
+                    </div>
+                </div>
+
+                <!-- 第二行四列 -->
+                <div class="form-grid four-cols">
+                    <div class="form-item">
+                        <label>特殊地质构造</label>
+                        <input v-model="caseForm.specialStructure" type="text" class="ctrl-input" :disabled="isViewOnly" placeholder="如：断层、节理密集带" />
+                    </div>
+                    <div class="form-item">
+                        <label>滑坡力学成因机制</label>
+                        <input v-model="caseForm.mechanism" type="text" class="ctrl-input" :disabled="isViewOnly" placeholder="如：推移式、牵引式" />
+                    </div>
+                    <div class="form-item">
+                        <label>主导诱因</label>
+                        <select v-model="caseForm.trigger" class="ctrl-input" :disabled="isViewOnly">
+                            <option>降雨入渗</option>
+                            <option>爆破振动</option>
+                            <option>开挖扰动</option>
+                            <option>地下水渗流</option>
+                        </select>
+                    </div>
+                    <div class="form-item">
+                        <label>处置方法</label>
+                        <select v-model="caseForm.disposalMethod" class="ctrl-input" :disabled="isViewOnly">
+                            <option>削坡</option>
+                            <option>压脚</option>
+                            <option>局部支挡</option>
+                            <option>换填</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 预警与地质详情 -->
+                <div class="form-section-title mt-15">预警与地质详情</div>
+                <div class="form-grid">
+                    <div class="form-item full-width">
+                        <label>触发预警阈值与监测特征</label>
+                        <input v-model="caseForm.warningThreshold" type="text" class="ctrl-input" :disabled="isViewOnly" placeholder="如：Z位移突变 > 150mm/d，深部位移呈三阶段蠕变" />
+                    </div>
+                    <div class="form-item full-width">
+                        <label>详细地质条件说明</label>
+                        <textarea v-model="caseForm.geologyDesc" class="ctrl-input" rows="2" :disabled="isViewOnly" placeholder="描述具体地层倾向、倾角及地下水情况..."></textarea>
+                    </div>
+                </div>
+
+                <!-- 方案与效果评估 -->
+                <div class="form-section-title mt-15">方案与效果评估</div>
+                <div class="form-grid">
+                    <div class="form-item full-width">
+                        <label>采用的治理方案 (主方案与辅助方案) <span class="req" v-if="!isViewOnly">*</span></label>
+                        <textarea v-model="caseForm.governancePlan" class="ctrl-input" rows="2" :disabled="isViewOnly" placeholder="详细描述处治工法与设计参数..."></textarea>
+                    </div>
+                    <div class="form-item full-width">
+                        <label>施工技术要点</label>
+                        <textarea v-model="caseForm.constructionPoints" class="ctrl-input" rows="2" :disabled="isViewOnly" placeholder="施工过程中的关键控制点、安全要求..."></textarea>
+                    </div>
+                    <div class="form-item full-width">
+                        <label>最终效果评估</label>
+                        <input v-model="caseForm.effectEvaluation" type="text" class="ctrl-input" :disabled="isViewOnly" placeholder="如：实施后位移收敛，安全系数提升至1.25。反演参数：c=22.5kPa，φ=18.2°" />
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="secondary-btn" @click="showModal = false">{{ isViewOnly ? '关闭' : '取消' }}</button>
+                <button class="primary-btn" v-if="!isViewOnly" @click="submitCase">保存并接入推理库</button>
+            </div>
+        </div>
+    </div>
+    <div class="modal-overlay" v-if="showCreateDisposalModal">
+        <div class="modal-box rule-modal-box">
+            <div class="modal-header">
+                <h3>新增处置单</h3>
+                <span class="close-btn" @click="showCreateDisposalModal = false">✖</span>
+            </div>
+
+            <div class="modal-body scrollable-modal">
+                <div class="form-section-title">处置单信息</div>
+                <div class="form-grid">
+                    <div class="form-item">
+                        <label>预警时间 <span class="req">*</span></label>
+                        <input v-model="decisionForm.time" class="ctrl-input" type="datetime-local" />
+                    </div>
+
+                    <div class="form-item">
+                        <label>预警等级 <span class="req">*</span></label>
+                        <select v-model="decisionForm.levelText" class="ctrl-input">
+                            <option>红色预警（一级）</option>
+                            <option>橙色预警（二级）</option>
+                            <option>黄色预警（三级）</option>
+                            <option>蓝色预警（四级）</option>
+                        </select>
+                    </div>
+
+                    <div class="form-item">
+                        <label>预警区域 <span class="req">*</span></label>
+                        <input v-model="decisionForm.area" class="ctrl-input" type="text" placeholder="请输入预警区域" />
+                    </div>
+
+                    <div class="form-item">
+                        <label>处理人员 <span class="req">*</span></label>
+                        <input v-model="decisionForm.staff" class="ctrl-input" type="text" placeholder="请输入处理人员" />
+                    </div>
+
+                    <div class="form-item">
+                        <label>滑坡类型</label>
+                        <input v-model="decisionForm.landslideType" class="ctrl-input" type="text" placeholder="如：牵引式滑坡" />
+                    </div>
+
+                    <div class="form-item">
+                        <label>成因</label>
+                        <input v-model="decisionForm.cause" class="ctrl-input" type="text" placeholder="如：连续降雨 + 坡脚扰动" />
+                    </div>
+
+                    <div class="form-item">
+                        <label>处置状态</label>
+                        <select v-model="decisionForm.status" class="ctrl-input">
+                            <option>会商中</option>
+                            <option>处置中</option>
+                            <option>待复核</option>
+                            <option>已研判</option>
+                        </select>
+                    </div>
+
+                    <div class="form-item">
+                        <label>是否闭环</label>
+                        <select v-model="decisionForm.isClosed" class="ctrl-input">
+                            <option>否</option>
+                            <option>是</option>
+                        </select>
+                    </div>
+
+                    <div class="form-item full-width">
+                        <label>后备处理人员</label>
+                        <input v-model="decisionForm.backupStaff" class="ctrl-input" type="text" placeholder="请输入后备处理人员" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="secondary-btn" @click="showCreateDisposalModal = false">取消</button>
+                <button class="primary-btn" @click="submitDecisionDisposal">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" v-if="showRuleModal">
+        <div class="modal-box rule-modal-box">
+            <div class="modal-header">
+                <h3>{{ editingRuleIndex === -1 ? '新增经验规则' : '编辑经验规则' }}</h3>
+                <span class="close-btn" @click="showRuleModal = false">✖</span>
+            </div>
+            <div class="modal-body scrollable-modal">
+                <div class="form-section-title">规则详情设定</div>
+                <div class="form-grid single-col">
+                    <div class="form-item">
+                        <label>规则编号 <span class="req">*</span></label>
+                        <input type="text" class="ctrl-input" v-model="ruleForm.id" placeholder="如：RULE-R04-NEW">
+                    </div>
+                    <div class="form-item">
+                        <label>感知与临界条件 (If) <span class="req">*</span></label>
+                        <textarea class="ctrl-input" rows="3" v-model="ruleForm.condition" placeholder="描述触发该规则的前提条件..."></textarea>
+                    </div>
+                    <div class="form-item">
+                        <label>推荐研判与处治动作 (Then) <span class="req">*</span></label>
+                        <textarea class="ctrl-input" rows="3" v-model="ruleForm.action" placeholder="描述初步研判结论和推荐处治方案..."></textarea>
+                    </div>
+                    <div class="form-item">
+                        <label>经验参数 (提升范围/标准)</label>
+                        <input type="text" class="ctrl-input" v-model="ruleForm.parameter" placeholder="如：预估提升 Fs 0.05~0.15">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="secondary-btn" @click="showRuleModal = false">取消</button>
+                <button class="primary-btn" @click="submitRule">保存规则</button>
+            </div>
+        </div>
+    </div>
+
+</div>

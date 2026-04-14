@@ -1,100 +1,133 @@
 <template>
   <section class="panel linkage-command-board">
     <div class="linkage-command-layout">
-      <div class="map-board">
-        <div ref="threeContainer" class="three-viewport"></div>
-        <div class="map-overlay warning-chip">橙色预警</div>
-        <div class="map-overlay controls-chip">左键平移 / 按住 Ctrl+左键旋转 / 滚轮缩放</div>
+      <div class="map-panel">
+        <div class="map-board">
+          <div ref="threeContainer" class="three-viewport"></div>
+          <div class="map-overlay warning-chip" :style="warningChipStyle">{{ warningChipText }}</div>
+          <div class="map-overlay controls-chip">左键平移 / 按住 Ctrl+左键旋转 / 滚轮缩放</div>
+        </div>
       </div>
 
-      <div class="board-sidebar">
-        <div class="sidebar-summary">
-          <div class="summary-card">
-            <span>预警区域</span>
-            <strong>北帮 3 号台阶至运输道路</strong>
-          </div>
-          <div class="summary-card">
-            <span>在途对象</span>
-            <strong>7 人员 / 3 车辆 / 2 设备</strong>
-          </div>
-        </div>
+      <aside class="right-panel">
+        <div class="right-panel-content">
+          <div class="summary-strip">
+            <div class="summary-card">
+              <div class="summary-main">
+                <span>预警区域</span>
+                <strong>北帮 3 号平台至运输道路</strong>
+              </div>
 
-        <div class="board-list">
-          <div class="board-table table-head board-table-linkage">
-            <span>预警等级</span>
-            <span>预警区域</span>
-            <span>人员、车辆编号</span>
-            <span>距离</span>
-            <span>响应状态</span>
+              <div class="summary-stats">
+                <div class="summary-stat">
+                  <span>人员数量</span>
+                  <strong>{{ summaryCounts.person }}</strong>
+                </div>
+                <div class="summary-stat">
+                  <span>采掘设备数量</span>
+                  <strong>{{ summaryCounts.equipment }}</strong>
+                </div>
+                <div class="summary-stat">
+                  <span>无人驾驶车辆数量</span>
+                  <strong>{{ summaryCounts.vehicle }}</strong>
+                </div>
+              </div>
+            </div>
+
+            <button class="placeholder-button" type="button" @click.stop="showWarningSettingsModal = true">
+              <span>预警区域</span>
+              <strong>参数设置</strong>
+            </button>
           </div>
+
           <div
-            v-for="item in sortedCommandUnits"
-            :key="item.code"
-            class="board-table board-table-linkage table-row"
-            :class="{ selected: selectedUnitCode === item.code }"
-            @click="focusUnit(item.code)"
+            class="placeholder-card"
+            @pointerdown="handlePanelPointerDown"
+            @click.self="handlePanelBlankClick"
           >
-            <div class="unit-cell">
-              <strong>{{ item.level }}</strong>
+            <div class="placeholder-head">
+              <div class="category-switch">
+                <button
+                  v-for="item in categoryOptions"
+                  :key="item.value"
+                  type="button"
+                  class="category-btn"
+                  :class="{ active: activeCategory === item.value }"
+                  @click.stop="handleCategoryClick(item.value, $event)"
+                >
+                  {{ item.label }}
+                </button>
+              </div>
             </div>
-            <div class="unit-cell">
-              <strong>{{ item.area }}</strong>
-            </div>
-            <div class="unit-cell">
-              <strong>{{ item.code }}</strong>
-            </div>
-            <div class="unit-cell">
-              <strong>{{ item.distance }}</strong>
-            </div>
-            <div class="unit-cell">
-              <span class="response-pill" :class="item.response === 'responded' ? 'responded' : 'pending'">
-                {{ item.response === 'responded' ? '已响应' : '未响应' }}
-              </span>
+
+            <div class="data-table" @click.self="handlePanelBlankClick">
+              <div class="data-row data-head">
+                <span>预警等级</span>
+                <span>预警区域</span>
+                <span>人员、车辆编号</span>
+                <span>距离</span>
+                <span>响应状态</span>
+              </div>
+
+              <div
+                v-for="item in filteredResponseList"
+                :key="item.code"
+                class="data-row data-body"
+                :class="{ selected: selectedUnitCode === item.code }"
+                @click.stop="handleRowClick(item.code, $event)"
+              >
+                <strong>{{ item.level }}</strong>
+                <strong>{{ item.area }}</strong>
+                <strong>{{ item.code }}</strong>
+                <strong>{{ item.distance }}</strong>
+                <span class="response-pill" :class="item.response === '已响应' ? 'responded' : 'pending'">
+                  {{ item.response }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </div>
-
-    <div class="linkage-control-strip">
-      <div class="control-metrics">
-        <div v-for="item in controlMetrics" :key="item.label" class="control-metric-card">
-          <span>{{ item.label }}</span>
-          <strong>{{ item.value }}</strong>
-        </div>
-      </div>
-      <div class="control-note-card">
-        <strong>联动模块与设备控制</strong>
-        <span>无人驾驶调度、广播门禁、视频轮巡和采掘设备控制已形成联动链路，当前优先限制高风险区域通行并保留应急通道。</span>
-      </div>
-    </div>
-
-    <div class="control-action-strip">
-      <div v-for="item in controlActions" :key="item.title" class="control-action-card">
-        <div class="control-action-top">
-          <strong>{{ item.title }}</strong>
-          <span class="response-pill" :class="item.stateClass">{{ item.state }}</span>
-        </div>
-        <p>{{ item.detail }}</p>
-      </div>
-    </div>
-
-    <div class="control-feedback-strip">
-      <div v-for="item in controlFeedback" :key="item.label" class="control-feedback-card">
-        <span>{{ item.label }}</span>
-        <strong>{{ item.value }}</strong>
-      </div>
+      </aside>
     </div>
   </section>
+
+  <div v-if="showWarningSettingsModal" class="modal-mask" @click.self="showWarningSettingsModal = false">
+    <section class="warning-settings-modal">
+      <div class="modal-head">
+        <div>
+          <p class="modal-kicker">预警区域参数设置</p>
+          <h3>预警等级范围配置</h3>
+        </div>
+        <button type="button" class="modal-close" @click="showWarningSettingsModal = false">关闭</button>
+      </div>
+
+      <div class="settings-grid">
+        <label v-for="item in warningLevels" :key="item.value" class="settings-card">
+          <span>{{ item.name }}预警范围</span>
+          <div class="settings-input-wrap">
+            <input v-model.number="warningSettings.ranges[item.value]" type="number" min="20" step="10" />
+            <em>m</em>
+          </div>
+        </label>
+      </div>
+
+      <div class="settings-tip">
+        当前地图按 <strong>四级橙色预警</strong> 显示，最外圈范围为 <strong>{{ currentWarningRange }} m</strong>。
+      </div>
+    </section>
+  </div>
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 
 const threeContainer = ref(null);
-const selectedUnitCode = ref('P-31');
+const selectedUnitCode = ref(null);
+const activeCategory = ref('person');
+const isWarningZoneSelected = ref(false);
+const showWarningSettingsModal = ref(false);
 
 let renderer;
 let scene;
@@ -102,70 +135,62 @@ let camera;
 let controls;
 let animationId;
 let pointSprites = new Map();
+let warningZoneMesh;
+let warningRadarGroup;
+let raycaster;
+let pointer;
+let pointerDownState = null;
 
-const commandUnits = [
-  { code: 'P-31', level: '橙色', area: '北帮 3 号台阶', position: '现场管控线', status: '值守中', distance: '64 m', response: 'responded' },
-  { code: 'P-07', level: '橙色', area: '北帮 3 号台阶', position: '撤离路线 A', status: '撤离中', distance: '85 m', response: 'responded' },
-  { code: 'EX-07', level: '橙色', area: '作业面边坡', position: '设备撤离路线', status: '待停机', distance: '96 m', response: 'pending' },
-  { code: 'P-23', level: '橙色', area: '北帮作业面', position: '撤离路线一段', status: '撤离中', distance: '108 m', response: 'responded' },
-  { code: 'P-12', level: '橙色', area: '运输道路东侧', position: '撤离路线 B', status: '已确认', distance: '132 m', response: 'pending' }
+const CLICK_MAX_DURATION = 220;
+const CLICK_MAX_MOVE = 8;
+
+const warningZoneCenter = {
+  centerX: 24,
+  centerZ: 24
+};
+
+const warningLevels = [
+  { value: '1', name: '一级预警', color: '#d9534f' },
+  { value: '2', name: '二级预警', color: '#f18f3b' },
+  { value: '3', name: '三级预警', color: '#f0c35a' },
+  { value: '4', name: '四级预警', color: '#ff8a4c' }
 ];
 
-const sortedCommandUnits = computed(() =>
-  [...commandUnits].sort((a, b) => Number.parseFloat(a.distance) - Number.parseFloat(b.distance))
-);
-
-const controlMetrics = computed(() => {
-  const respondedCount = commandUnits.filter((item) => item.response === 'responded').length;
-  const pendingCount = commandUnits.filter((item) => item.response === 'pending').length;
-
-  return [
-    { label: '已联动模块', value: '4 项' },
-    { label: '设备控制对象', value: '3 台' },
-    { label: '已响应目标', value: `${respondedCount} 个` },
-    { label: '待确认回执', value: `${pendingCount} 个` }
-  ];
+const warningSettings = reactive({
+  currentLevel: '4',
+  ranges: {
+    '1': 200,
+    '2': 150,
+    '3': 110,
+    '4': 80
+  }
 });
 
-const controlActions = [
-  {
-    title: '道路通行控制',
-    state: '已切换',
-    stateClass: 'responded',
-    detail: '北帮运输道路已进入限制通行模式，社会车辆与作业车辆分流。'
-  },
-  {
-    title: '采掘设备避让',
-    state: '执行中',
-    stateClass: 'pending',
-    detail: 'EX-07 已收到避让指令，沿设备撤离路线退出高风险边界。'
-  },
-  {
-    title: '广播与门禁',
-    state: '已联动',
-    stateClass: 'responded',
-    detail: '广播模板切换为橙色预警通告，1 号卡口保持只出不进。'
-  }
-];
-
-const controlFeedback = [
-  { label: '接口回执时间', value: '16:42:18' },
-  { label: '最近联动车辆', value: 'T-05 / T-11' },
-  { label: '最近控制设备', value: 'EX-07' },
-  { label: '视频轮巡状态', value: '高风险区域锁定' }
-];
-
 const mapUnits = [
-  { code: 'P-31', type: 'person', color: '#67d7ff', x: 30, z: 19, blink: true },
-  { code: 'P-07', type: 'person', color: '#67d7ff', x: 32, z: 31, blink: true },
-  { code: 'P-12', type: 'person', color: '#67d7ff', x: 20, z: 20 },
-  { code: 'P-23', type: 'person', color: '#67d7ff', x: 26, z: 26 },
-  { code: 'EX-07', type: 'equipment', color: '#ff8c69', x: 16, z: 34 },
-  { code: 'T-05', type: 'vehicle', color: '#ffd166', x: 43, z: 16 },
-  { code: 'T-11', type: 'vehicle', color: '#ffd166', x: 56, z: 2 },
-  { code: 'EQ-14', type: 'equipment', color: '#79e2b0', x: -34, z: -38 },
-  { code: 'P-19', type: 'person', color: '#79e2b0', x: 9, z: 10 },
-  { code: 'T-22', type: 'vehicle', color: '#79e2b0', x: -56, z: -8 }
+  { code: 'P-31', type: 'person', color: '#67d7ff', x: 30, z: 19, detail: '张伟' },
+  { code: 'P-07', type: 'person', color: '#67d7ff', x: 32, z: 31, detail: '李强' },
+  { code: 'P-12', type: 'person', color: '#67d7ff', x: 6, z: 8, detail: '王凯' },
+  { code: 'P-23', type: 'person', color: '#67d7ff', x: -18, z: 22, detail: '赵磊' },
+  { code: 'P-41', type: 'person', color: '#67d7ff', x: 58, z: 28, detail: '刘洋' },
+  { code: 'P-44', type: 'person', color: '#67d7ff', x: -32, z: 6, detail: '陈浩' },
+  { code: 'P-52', type: 'person', color: '#79e2b0', x: -6, z: 44, detail: '孙涛' },
+  { code: 'P-58', type: 'person', color: '#67d7ff', x: 44, z: -6, detail: '周斌' },
+  { code: 'P-61', type: 'person', color: '#79e2b0', x: -46, z: 42, detail: '吴杰' },
+  { code: 'P-66', type: 'person', color: '#79e2b0', x: 12, z: 58, detail: '郑峰' },
+  { code: 'EX-07', type: 'equipment', color: '#ff8c69', x: 16, z: 34, detail: '待机' },
+  { code: 'EX-11', type: 'equipment', color: '#ff8c69', x: -42, z: 54, detail: '作业中' },
+  { code: 'EX-16', type: 'equipment', color: '#79e2b0', x: 52, z: -18, detail: '巡检中' },
+  { code: 'EX-19', type: 'equipment', color: '#ff8c69', x: -8, z: 56, detail: '待命' },
+  { code: 'EQ-21', type: 'equipment', color: '#79e2b0', x: -54, z: 12, detail: '已联动' },
+  { code: 'T-05', type: 'vehicle', color: '#ffd166', x: 43, z: 16, detail: '已避让' },
+  { code: 'T-11', type: 'vehicle', color: '#ffd166', x: 56, z: 2, detail: '待调度' },
+  { code: 'T-18', type: 'vehicle', color: '#ffd166', x: -38, z: 48, detail: '返航中' },
+  { code: 'T-27', type: 'vehicle', color: '#79e2b0', x: 62, z: -12, detail: '巡航中' },
+  { code: 'T-33', type: 'vehicle', color: '#ffd166', x: 4, z: 54, detail: '已改道' },
+  { code: 'T-38', type: 'vehicle', color: '#79e2b0', x: -26, z: -14, detail: '待确认' },
+  { code: 'EQ-14', type: 'equipment', color: '#79e2b0', x: -34, z: -38, detail: '待机' },
+  { code: 'P-19', type: 'person', color: '#79e2b0', x: 9, z: 10, detail: '高敏' },
+  { code: 'T-22', type: 'vehicle', color: '#79e2b0', x: -56, z: -8, detail: '巡检中' }
 ];
 
 const mapRoutes = [
@@ -182,23 +207,130 @@ const mapRoutes = [
     labelAt: [60, 12]
   },
   {
-    label: '设备撤离路线',
+    label: '设备避让路线',
     color: '#ff8c69',
     points: [[16, 34], [10, 42], [2, 48], [-8, 54]],
     labelAt: [3, 46]
   }
 ];
 
+const categoryOptions = [
+  { label: '人员', value: 'person' },
+  { label: '无人车辆', value: 'vehicle' },
+  { label: '挖掘设备', value: 'equipment' }
+];
+
+const responseList = [
+  { type: 'person', code: 'P-31', level: '橙色', area: '北帮 3 号平台至运输道路', distance: '64 m', response: '已响应' },
+  { type: 'person', code: 'P-07', level: '橙色', area: '北帮 3 号平台至运输道路', distance: '85 m', response: '已响应' },
+  { type: 'person', code: 'P-41', level: '橙色', area: '东侧运输岔口', distance: '142 m', response: '待响应' },
+  { type: 'person', code: 'P-44', level: '橙色', area: '北帮外侧巡检线', distance: '164 m', response: '已响应' },
+  { type: 'person', code: 'P-52', level: '橙色', area: '作业面边坡', distance: '118 m', response: '待响应' },
+  { type: 'person', code: 'P-23', level: '橙色', area: '北帮作业面', distance: '108 m', response: '已响应' },
+  { type: 'person', code: 'P-12', level: '橙色', area: '中部巡查通道', distance: '154 m', response: '待响应' },
+  { type: 'person', code: 'P-58', level: '橙色', area: '东侧运输岔口', distance: '176 m', response: '已响应' },
+  { type: 'person', code: 'P-61', level: '橙色', area: '西北角高风险区', distance: '26 m', response: '待响应' },
+  { type: 'person', code: 'P-66', level: '橙色', area: '南侧临边巡检线', distance: '186 m', response: '待响应' },
+  { type: 'vehicle', code: 'T-05', level: '橙色', area: '北帮 3 号平台至运输道路', distance: '72 m', response: '已响应' },
+  { type: 'vehicle', code: 'T-18', level: '橙色', area: '西北角高风险区', distance: '34 m', response: '待响应' },
+  { type: 'vehicle', code: 'T-27', level: '橙色', area: '东侧运输岔口', distance: '182 m', response: '已响应' },
+  { type: 'vehicle', code: 'T-11', level: '橙色', area: '运输道路东侧', distance: '94 m', response: '待响应' },
+  { type: 'vehicle', code: 'T-22', level: '橙色', area: '作业面边坡', distance: '146 m', response: '待响应' },
+  { type: 'vehicle', code: 'T-33', level: '橙色', area: '南侧临边巡检线', distance: '168 m', response: '已响应' },
+  { type: 'vehicle', code: 'T-38', level: '橙色', area: '西侧排土通道', distance: '174 m', response: '待响应' },
+  { type: 'equipment', code: 'EX-07', level: '橙色', area: '作业面边坡', distance: '96 m', response: '待响应' },
+  { type: 'equipment', code: 'EX-11', level: '橙色', area: '西北角高风险区', distance: '22 m', response: '待响应' },
+  { type: 'equipment', code: 'EX-16', level: '橙色', area: '东南作业带', distance: '172 m', response: '已响应' },
+  { type: 'equipment', code: 'EX-19', level: '橙色', area: '南侧临边巡检线', distance: '188 m', response: '已响应' },
+  { type: 'equipment', code: 'EQ-21', level: '橙色', area: '西北角高风险区', distance: '31 m', response: '待响应' },
+  { type: 'equipment', code: 'EQ-14', level: '橙色', area: '北帮 3 号平台至运输道路', distance: '158 m', response: '已响应' }
+];
+
+const filteredResponseList = computed(() =>
+  responseList
+    .filter((item) => item.type === activeCategory.value)
+    .sort((a, b) => Number.parseFloat(a.distance) - Number.parseFloat(b.distance))
+);
+
+const isUnitInWarningZone = (unit) => {
+  const scale = getWarningZoneScale(currentWarningRange.value);
+  const radiusX = 30 * scale.x;
+  const radiusZ = 30 * scale.z;
+  const nx = (unit.x - warningZoneCenter.centerX) / radiusX;
+  const nz = (unit.z - warningZoneCenter.centerZ) / radiusZ;
+  return nx * nx + nz * nz <= 1;
+};
+
+const summaryCounts = computed(() => ({
+  person: mapUnits.filter((item) => item.type === 'person' && (!isWarningZoneSelected.value || isUnitInWarningZone(item))).length,
+  vehicle: mapUnits.filter((item) => item.type === 'vehicle' && (!isWarningZoneSelected.value || isUnitInWarningZone(item))).length,
+  equipment: mapUnits.filter((item) => item.type === 'equipment' && (!isWarningZoneSelected.value || isUnitInWarningZone(item))).length
+}));
+
+const currentWarningMeta = computed(() =>
+  warningLevels.find((item) => item.value === warningSettings.currentLevel) || warningLevels[3]
+);
+
+const currentWarningRange = computed(() => warningSettings.ranges[warningSettings.currentLevel]);
+const warningChipText = computed(() => '橙色预警（四级）');
+
+const warningChipStyle = computed(() => ({
+  background: `${currentWarningMeta.value.color}33`,
+  borderColor: `${currentWarningMeta.value.color}66`,
+  boxShadow: `0 12px 28px ${currentWarningMeta.value.color}33`
+}));
+
+const getWarningZoneScale = (range) => {
+  const baseScale = Math.max(0.45, Number(range || 120) / 100);
+  return {
+    x: baseScale,
+    z: Math.max(0.4, baseScale * 0.875)
+  };
+};
+
+const getWorldRadius = (range) => Math.max(16, Number(range || 80) * 0.3);
+
 const getTerrainHeight = (x, z) => Math.sin(x / 10) * Math.cos(z / 10) * 8;
 
 const focusUnit = (code) => {
   selectedUnitCode.value = code;
+  isWarningZoneSelected.value = false;
   const unit = mapUnits.find((item) => item.code === code);
   if (unit && controls) {
+    activeCategory.value = unit.type;
     controls.target.set(unit.x, getTerrainHeight(unit.x, unit.z), unit.z);
     camera.position.set(unit.x + 14, 86, unit.z + 12);
   }
   updateSelectionVisuals();
+};
+
+const clearSelections = () => {
+  selectedUnitCode.value = null;
+  isWarningZoneSelected.value = false;
+  updateSelectionVisuals();
+};
+
+const handlePanelPointerDown = (event) => {
+  pointerDownState = {
+    time: Date.now(),
+    x: event.clientX,
+    y: event.clientY
+  };
+};
+
+const handlePanelBlankClick = (event) => {
+  if (!isShortClick(event)) return;
+  clearSelections();
+};
+
+const handleCategoryClick = (value, event) => {
+  if (!isShortClick(event)) return;
+  activeCategory.value = value;
+};
+
+const handleRowClick = (code, event) => {
+  if (!isShortClick(event)) return;
+  focusUnit(code);
 };
 
 const drawRoundedRect = (ctx, x, y, width, height, radius) => {
@@ -243,11 +375,11 @@ const createSpotTexture = () => {
   return new THREE.CanvasTexture(canvas);
 };
 
-const createMapMarkerTexture = (type, color, code) => {
+const createMapMarkerTexture = (type, color, code, detail) => {
   const scale = 2;
   const canvas = document.createElement('canvas');
   canvas.width = 256 * scale;
-  canvas.height = 256 * scale;
+  canvas.height = 300 * scale;
   const ctx = canvas.getContext('2d');
 
   ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
@@ -290,10 +422,13 @@ const createMapMarkerTexture = (type, color, code) => {
   }
 
   ctx.shadowColor = 'transparent';
-  ctx.fillStyle = '#10233a';
-  ctx.font = `bold ${18 * scale}px "Microsoft YaHei", sans-serif`;
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `bold ${22 * scale}px "Microsoft YaHei", sans-serif`;
   ctx.textAlign = 'center';
-  ctx.fillText(code, 128 * scale, 226 * scale);
+  ctx.fillText(code, 128 * scale, 228 * scale);
+  ctx.font = `${18 * scale}px "Microsoft YaHei", sans-serif`;
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  ctx.fillText(detail, 128 * scale, 266 * scale);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.minFilter = THREE.LinearFilter;
@@ -358,10 +493,132 @@ const createTerrainZone = (centerX, centerZ, colorHex, spotTexture) => {
   return mesh;
 };
 
+const createRadarRing = (range, colorHex) => {
+  const radius = getWorldRadius(range);
+  const segments = 96;
+  const points = [];
+  const planeY = getTerrainHeight(warningZoneCenter.centerX, warningZoneCenter.centerZ) + 1.2;
+  for (let i = 0; i <= segments; i++) {
+    const angle = (i / segments) * Math.PI * 2;
+    const x = warningZoneCenter.centerX + Math.cos(angle) * radius;
+    const z = warningZoneCenter.centerZ + Math.sin(angle) * radius;
+    points.push(new THREE.Vector3(x, planeY, z));
+  }
+
+  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+  const material = new THREE.LineBasicMaterial({
+    color: colorHex,
+    transparent: true,
+    opacity: 0.82
+  });
+
+  const line = new THREE.Line(geometry, material);
+  line.renderOrder = 6;
+  return line;
+};
+
+const createRadarLabel = (text, range, colorHex) => {
+  const texture = createTextLabelTexture(text, colorHex);
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false
+  });
+  const radius = getWorldRadius(range);
+  const x = warningZoneCenter.centerX + radius;
+  const z = warningZoneCenter.centerZ;
+  const y = getTerrainHeight(warningZoneCenter.centerX, warningZoneCenter.centerZ) + 6.5;
+  const sprite = new THREE.Sprite(material);
+  sprite.position.set(x + 4, y, z);
+  sprite.scale.set(16, 4.2, 1);
+  sprite.renderOrder = 7;
+  return sprite;
+};
+
 const updateSelectionVisuals = () => {
   pointSprites.forEach((sprite, code) => {
     sprite.material.opacity = selectedUnitCode.value === code ? 1 : 0.92;
   });
+
+  if (warningZoneMesh) {
+    warningZoneMesh.material.opacity = isWarningZoneSelected.value ? 0.96 : 0.8;
+  }
+};
+
+const isShortClick = (event) => {
+  if (!pointerDownState) return false;
+  const duration = Date.now() - pointerDownState.time;
+  const moveX = event.clientX - pointerDownState.x;
+  const moveY = event.clientY - pointerDownState.y;
+  const distance = Math.hypot(moveX, moveY);
+  pointerDownState = null;
+  return duration <= CLICK_MAX_DURATION && distance <= CLICK_MAX_MOVE;
+};
+
+const handlePointerDown = (event) => {
+  pointerDownState = {
+    time: Date.now(),
+    x: event.clientX,
+    y: event.clientY
+  };
+};
+
+const handleSceneClick = (event) => {
+  if (!renderer || !camera || !raycaster || !isShortClick(event)) return;
+
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+  raycaster.setFromCamera(pointer, camera);
+
+  const targets = [...pointSprites.values()];
+  if (warningZoneMesh) targets.push(warningZoneMesh);
+  const intersections = raycaster.intersectObjects(targets, false);
+
+  if (!intersections.length) {
+    clearSelections();
+    return;
+  }
+
+  const hit = intersections[0].object;
+  if (hit.userData.kind === 'unit') {
+    focusUnit(hit.userData.code);
+    return;
+  }
+
+  if (hit.userData.kind === 'warning-zone') {
+    selectedUnitCode.value = null;
+    isWarningZoneSelected.value = true;
+    updateSelectionVisuals();
+    return;
+  }
+
+  clearSelections();
+};
+
+const updateWarningZoneMesh = () => {
+  if (!warningZoneMesh) return;
+  const scale = getWarningZoneScale(currentWarningRange.value);
+  warningZoneMesh.scale.set(scale.x, 1, scale.z);
+  warningZoneMesh.material.color.set(currentWarningMeta.value.color);
+};
+
+const rebuildWarningRadar = () => {
+  if (!scene) return;
+
+  if (warningRadarGroup) {
+    scene.remove(warningRadarGroup);
+  }
+
+  warningRadarGroup = new THREE.Group();
+  warningLevels.forEach((level) => {
+    const range = warningSettings.ranges[level.value];
+    warningRadarGroup.add(createRadarRing(range, level.color));
+    warningRadarGroup.add(createRadarLabel(`${level.name} ${range}m`, range, level.color));
+  });
+
+  scene.add(warningRadarGroup);
 };
 
 const initMap = () => {
@@ -382,6 +639,11 @@ const initMap = () => {
   renderer.domElement.style.display = 'block';
   threeContainer.value.appendChild(renderer.domElement);
   renderer.domElement.addEventListener('contextmenu', (event) => event.preventDefault());
+  renderer.domElement.addEventListener('pointerdown', handlePointerDown);
+  renderer.domElement.addEventListener('click', handleSceneClick);
+
+  raycaster = new THREE.Raycaster();
+  pointer = new THREE.Vector2();
 
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
@@ -398,9 +660,13 @@ const initMap = () => {
   controls.target.set(18, 0, 16);
 
   const spotTexture = createSpotTexture();
-  const warningZone = createTerrainZone(24, 24, '#ff8a4c', spotTexture);
-  warningZone.scale.set(1.2, 1, 1.05);
+  const warningZone = createTerrainZone(warningZoneCenter.centerX, warningZoneCenter.centerZ, currentWarningMeta.value.color, spotTexture);
+  const warningZoneScale = getWarningZoneScale(currentWarningRange.value);
+  warningZone.scale.set(warningZoneScale.x, 1, warningZoneScale.z);
+  warningZone.userData.kind = 'warning-zone';
   scene.add(warningZone);
+  warningZoneMesh = warningZone;
+  rebuildWarningRadar();
 
   const pointGroup = new THREE.Group();
   const routeGroup = new THREE.Group();
@@ -408,7 +674,7 @@ const initMap = () => {
 
   mapUnits.forEach((unit) => {
     const y = getTerrainHeight(unit.x, unit.z);
-    const iconTexture = createMapMarkerTexture(unit.type, unit.color, unit.code);
+    const iconTexture = createMapMarkerTexture(unit.type, unit.color, unit.code, unit.detail);
     const spriteMaterial = new THREE.SpriteMaterial({
       map: iconTexture,
       transparent: true,
@@ -421,8 +687,9 @@ const initMap = () => {
     sprite.position.set(unit.x, y, unit.z);
     sprite.scale.set(12, 12, 1);
     sprite.center.set(0.5, 1 - 160 / 256);
-    sprite.userData.isBlinking = Boolean(unit.blink);
     sprite.userData.baseScale = 12;
+    sprite.userData.kind = 'unit';
+    sprite.userData.code = unit.code;
     pointGroup.add(sprite);
     pointSprites.set(unit.code, sprite);
   });
@@ -471,15 +738,15 @@ const initMap = () => {
 
   const animate = () => {
     animationId = requestAnimationFrame(animate);
-    const time = Date.now() * 0.005;
-
+    const time = Date.now() * 0.006;
     pointSprites.forEach((sprite, code) => {
-      const isSelected = selectedUnitCode.value === code;
-      const isBlinking = sprite.userData.isBlinking;
       const baseScale = sprite.userData.baseScale || 12;
-      const pulse = isSelected ? 2.4 : isBlinking ? 1.2 : 0;
-      const scale = baseScale + Math.sin(time * (isSelected ? 1.4 : 1)) * pulse;
-      sprite.scale.set(scale, scale, 1);
+      if (selectedUnitCode.value === code) {
+        const scale = baseScale + Math.sin(time) * 1.4;
+        sprite.scale.set(scale, scale, 1);
+      } else {
+        sprite.scale.set(baseScale, baseScale, 1);
+      }
     });
 
     controls.update();
@@ -487,6 +754,7 @@ const initMap = () => {
   };
 
   animate();
+  updateSelectionVisuals();
 };
 
 const handleResize = () => {
@@ -498,6 +766,15 @@ const handleResize = () => {
   renderer.setSize(width, height);
 };
 
+watch(
+  () => [warningSettings.ranges['1'], warningSettings.ranges['2'], warningSettings.ranges['3'], warningSettings.ranges['4']],
+  () => {
+    updateWarningZoneMesh();
+    rebuildWarningRadar();
+    updateSelectionVisuals();
+  }
+);
+
 onMounted(() => {
   initMap();
   window.addEventListener('resize', handleResize);
@@ -508,6 +785,8 @@ onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
   if (controls) controls.dispose();
   if (renderer) {
+    renderer.domElement?.removeEventListener('pointerdown', handlePointerDown);
+    renderer.domElement?.removeEventListener('click', handleSceneClick);
     renderer.dispose();
     if (renderer.domElement?.parentNode) {
       renderer.domElement.parentNode.removeChild(renderer.domElement);
@@ -525,19 +804,28 @@ onUnmounted(() => {
 }
 
 .linkage-command-board {
+  height: calc(100vh - 146px);
+  min-height: calc(100vh - 146px);
   padding: 14px;
 }
 
 .linkage-command-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.18fr) minmax(420px, 0.92fr);
-  gap: 16px;
-  align-items: stretch;
+  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.75fr);
+  gap: 12px;
+  height: 100%;
+}
+
+.map-panel,
+.right-panel {
+  height: 100%;
+  min-height: 0;
 }
 
 .map-board {
   position: relative;
-  min-height: 500px;
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
   border-radius: 18px;
   border: 1px solid rgba(133, 198, 241, 0.18);
@@ -547,7 +835,7 @@ onUnmounted(() => {
 .three-viewport {
   position: relative;
   width: 100%;
-  height: 500px;
+  height: 100%;
   cursor: grab;
   background: #0a1a2a;
 }
@@ -586,91 +874,317 @@ onUnmounted(() => {
   border: 1px solid rgba(133, 198, 241, 0.18);
 }
 
-.board-sidebar {
+.right-panel {
   display: flex;
+}
+
+.right-panel-content {
+  display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 10px;
 }
 
-.sidebar-summary {
+.summary-strip {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  gap: 10px;
+  align-items: stretch;
 }
 
 .summary-card {
-  padding: 12px 14px;
-  border-radius: 16px;
-  background: #f7faff;
-  border: 1px solid rgba(58, 103, 187, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff, #f7faff);
+  border: 1px solid rgba(28, 61, 144, 0.08);
+  box-shadow: 0 14px 32px rgba(28, 61, 144, 0.08);
 }
 
-.summary-card span,
-.unit-cell p {
-  font-size: 12px;
-  color: #7890b1;
+.summary-main span,
+.summary-stat span {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: #6f84aa;
 }
 
-.summary-card strong,
-.unit-cell strong {
+.summary-main strong {
   display: block;
   margin-top: 6px;
-  font-size: 14px;
+  font-size: 22px;
+  line-height: 1.35;
   color: #17376f;
 }
 
-.board-list {
+.summary-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.summary-stat {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #f8fbff;
+  border: 1px solid rgba(28, 61, 144, 0.08);
+}
+
+.summary-stat strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 22px;
+  line-height: 1;
+  color: #17376f;
+}
+
+.placeholder-button {
+  width: 96px;
+  height: 100%;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(28, 61, 144, 0.1);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff, #f1f6ff);
+  box-shadow: 0 14px 32px rgba(28, 61, 144, 0.08);
+  color: #4f678b;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.placeholder-button span {
+  font-size: 12px;
+  color: #6f84aa;
+}
+
+.placeholder-button strong {
+  font-size: 18px;
+  line-height: 1.2;
+  color: #17376f;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+
+.placeholder-card {
+  width: 100%;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px;
+  min-height: 0;
+  border-radius: 18px;
+  border: 1px solid rgba(28, 61, 144, 0.08);
+  background: linear-gradient(180deg, #ffffff, #f7faff);
+  box-shadow: 0 14px 32px rgba(28, 61, 144, 0.08);
+  color: #17376f;
+}
+
+.placeholder-tag {
+  align-self: flex-start;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #edf4ff;
+  color: #4470b8;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.placeholder-head {
+  width: 100%;
+}
+
+.category-switch {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+  gap: 8px;
+}
+
+.category-btn {
+  border: 1px solid rgba(28, 61, 144, 0.12);
+  border-radius: 14px;
+  min-height: 42px;
+  padding: 10px 12px;
+  background: #f8fbff;
+  color: #5f728f;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.category-btn.active {
+  color: #c76b1e;
+  background: linear-gradient(180deg, #fff4e7, #ffedd8);
+  border-color: rgba(217, 120, 31, 0.24);
+  box-shadow: 0 10px 20px rgba(217, 120, 31, 0.12);
+}
+
+.data-table {
   display: grid;
   gap: 8px;
-  max-height: 500px;
+  min-height: 0;
+  max-height: 100%;
   overflow-y: auto;
   padding-right: 4px;
 }
 
-.board-list::-webkit-scrollbar {
+.data-table::-webkit-scrollbar {
   width: 8px;
 }
 
-.board-list::-webkit-scrollbar-thumb {
+.data-table::-webkit-scrollbar-thumb {
   border-radius: 999px;
   background: rgba(92, 128, 190, 0.35);
 }
 
-.board-list::-webkit-scrollbar-track {
+.data-table::-webkit-scrollbar-track {
   background: rgba(237, 244, 255, 0.7);
 }
 
-.board-table {
+.data-row {
   display: grid;
+  grid-template-columns: 0.78fr 1.28fr 1fr 0.58fr 0.72fr;
   gap: 8px;
   align-items: center;
-  padding: 10px 12px;
   border-radius: 14px;
+  padding: 11px 12px;
 }
 
-.board-table-linkage {
-  grid-template-columns: 0.8fr 1.1fr 1.05fr 0.72fr 0.78fr;
-}
-
-.table-head {
+.data-head {
   background: #edf4ff;
   color: #5f7eb2;
   font-size: 11px;
   font-weight: 700;
 }
 
-.table-row {
+.data-body {
+  border: 1px solid rgba(28, 61, 144, 0.08);
   background: #f8fbff;
-  border: 1px solid rgba(28, 61, 144, 0.06);
-  cursor: pointer;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
-.table-row:hover,
-.table-row.selected {
-  border-color: rgba(28, 100, 242, 0.28);
-  box-shadow: 0 10px 24px rgba(28, 100, 242, 0.12);
-  transform: translateY(-1px);
+.data-body.selected {
+  border-color: rgba(217, 120, 31, 0.28);
+  background: linear-gradient(180deg, #fff9f1, #fff2e1);
+  box-shadow: 0 12px 24px rgba(217, 120, 31, 0.12);
+}
+
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(10, 26, 42, 0.28);
+  backdrop-filter: blur(6px);
+}
+
+.warning-settings-modal {
+  width: min(760px, 100%);
+  border-radius: 24px;
+  border: 1px solid rgba(28, 61, 144, 0.08);
+  background: linear-gradient(180deg, #ffffff, #f7faff);
+  box-shadow: 0 24px 56px rgba(28, 61, 144, 0.16);
+  padding: 24px;
+}
+
+.modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.modal-kicker {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #6f84aa;
+}
+
+.modal-head h3 {
+  margin-top: 6px;
+  font-size: 24px;
+  color: #17376f;
+}
+
+.modal-close {
+  border: 1px solid rgba(28, 61, 144, 0.12);
+  border-radius: 999px;
+  background: #f8fbff;
+  color: #4f678b;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.settings-card {
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(28, 61, 144, 0.08);
+  background: #fff;
+}
+
+.settings-card span {
+  display: block;
+  font-size: 13px;
+  color: #5f728f;
+}
+
+.settings-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.settings-input-wrap input {
+  width: 100%;
+  border: 1px solid rgba(28, 61, 144, 0.12);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #17376f;
+  outline: none;
+}
+
+.settings-input-wrap em {
+  font-style: normal;
+  font-size: 14px;
+  color: #6f84aa;
+}
+
+.settings-tip {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: #fff7ec;
+  color: #8a5a20;
+}
+
+.data-body strong:first-child {
+  color: #d9781f;
+}
+
+.data-body strong {
+  font-size: 13px;
+  line-height: 1.45;
+  color: #17376f;
 }
 
 .response-pill {
@@ -694,140 +1208,65 @@ onUnmounted(() => {
   background: #fff0df;
 }
 
-.linkage-control-strip {
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.95fr);
-  gap: 14px;
-  margin-top: 14px;
-}
-
-.control-metrics {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.control-metric-card,
-.control-note-card {
-  padding: 12px 14px;
-  border-radius: 16px;
-  border: 1px solid rgba(28, 61, 144, 0.08);
-  background: rgba(255, 255, 255, 0.88);
-}
-
-.control-metric-card span,
-.control-note-card strong {
-  display: block;
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  color: #6f84aa;
-}
-
-.control-metric-card strong {
-  display: block;
-  margin-top: 6px;
-  font-size: 18px;
-  color: #17376f;
-}
-
-.control-note-card {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-.control-note-card span {
-  margin-top: 6px;
-  color: #4f678b;
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.control-action-strip {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 12px;
-}
-
-.control-action-card {
-  padding: 12px 14px;
-  border-radius: 16px;
-  border: 1px solid rgba(28, 61, 144, 0.08);
-  background: linear-gradient(180deg, #fbfdff, #f5f9ff);
-}
-
-.control-action-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.control-action-top strong {
-  color: #17376f;
-  font-size: 14px;
-}
-
-.control-action-card p {
-  margin-top: 8px;
-  color: #5f728f;
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.control-feedback-strip {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.control-feedback-card {
-  padding: 10px 12px;
-  border-radius: 14px;
-  border: 1px solid rgba(28, 61, 144, 0.08);
-  background: rgba(247, 250, 255, 0.96);
-}
-
-.control-feedback-card span {
-  display: block;
-  font-size: 11px;
-  color: #7a8fad;
-}
-
-.control-feedback-card strong {
-  display: block;
-  margin-top: 6px;
-  font-size: 13px;
-  color: #17376f;
-}
-
 @media (max-width: 1200px) {
-  .linkage-command-layout,
-  .sidebar-summary {
+  .linkage-command-board {
+    height: auto;
+    min-height: auto;
+  }
+
+  .linkage-command-layout {
     grid-template-columns: 1fr;
   }
 
-  .linkage-control-strip,
-  .control-metrics,
-  .control-action-strip,
-  .control-feedback-strip {
+  .map-board {
+    min-height: 520px;
+  }
+
+  .right-panel {
+    min-height: 240px;
+  }
+
+  .summary-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .placeholder-button {
+    width: 100%;
+    height: 64px;
+  }
+
+  .placeholder-button strong {
+    writing-mode: horizontal-tb;
+  }
+
+  .settings-grid {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 768px) {
-  .board-table-linkage {
-    grid-template-columns: 1fr;
-  }
-
   .map-board {
     min-height: 420px;
   }
 
-  .three-viewport {
-    height: 420px;
+  .summary-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .placeholder-card {
+    padding: 16px;
+  }
+
+  .placeholder-head {
+    width: 100%;
+  }
+
+  .data-row {
+    grid-template-columns: 1fr;
+  }
+
+  .placeholder-card strong {
+    font-size: 20px;
   }
 }
 </style>

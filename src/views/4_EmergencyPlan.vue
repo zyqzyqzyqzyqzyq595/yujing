@@ -1,114 +1,273 @@
-<template>
+﻿<template>
   <div class="view-page emergency-page">
-
-    <section class="panel command-board">
-      <div class="panel-head">
-        <div>
-          <p class="panel-kicker">指挥看板</p>
-          <h3>人员与车辆预案规划路线</h3>
-        </div>
-        <span class="badge warning">橙色预警 / II 级响应</span>
+    <section class="emergency-shell">
+      <div class="map-panel">
+        <div ref="threeContainer" class="three-viewport"></div>
+        <div class="map-overlay warning-chip">{{ warningSummary.level }}预警</div>
+        <div class="map-overlay area-chip">{{ warningSummary.area }}</div>
+        <div class="map-overlay controls-chip">左键平移 / 按住 Ctrl + 左键旋转 / 滚轮缩放</div>
       </div>
 
-      <div class="command-layout">
-        <div class="map-board">
-          <div ref="threeContainer" class="three-viewport"></div>
-          <div class="map-overlay warning-chip">橙色预警</div>
-          <div class="map-overlay controls-chip">左键平移 / 按住 Ctrl+左键旋转 / 滚轮缩放</div>
-        </div>
-
-        <div class="board-sidebar">
-          <div class="sidebar-summary">
-            <div class="summary-card">
-              <span>预警区域</span>
-              <strong>北帮 3 号台阶至运输道路</strong>
+      <div class="right-column">
+        <section class="panel status-panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">应急指挥概览</p>
+              <h3>预警数据项</h3>
             </div>
-            <div class="summary-card">
-              <span>在途对象</span>
-              <strong>7 人员 / 3 车辆 / 2 设备</strong>
+            <div class="status-actions">
+              <button type="button" class="status-action-btn primary" @click="openPlanLibraryModal">应急预案库管理</button>
+              <button type="button" class="status-action-btn" @click="downloadHistoryPlanTable">历史应急预案</button>
             </div>
           </div>
 
-          <div class="board-list">
-            <div class="board-table table-head">
+          <div class="status-table">
+            <div class="status-row status-head">
               <span>预警等级</span>
               <span>预警区域</span>
-              <span>人员、车辆编号</span>
-              <span>距离</span>
+              <span>触发时间</span>
+              <span>最近人员和设备编号</span>
+              <span>与预警区距离</span>
+            </div>
+            <div class="status-row status-body">
+              <strong class="warning-level-text">{{ warningSummary.level }}</strong>
+              <strong>{{ warningSummary.area }}</strong>
+              <strong>{{ departureTime }}</strong>
+              <strong>{{ nearestPerson.code }}</strong>
+              <strong>{{ selectedUnit.distance }}</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel steps-panel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">应急预案</p>
+              <h3>预警预案执行步骤</h3>
+            </div>
+            <span class="steps-tag">IV级响应流程</span>
+          </div>
+
+          <div class="steps-table">
+            <div class="steps-row table-head">
+              <span>#</span>
+              <span>步骤</span>
+              <span>责任人</span>
+              <span>时限</span>
+              <span>状态</span>
             </div>
             <div
-              v-for="item in sortedCommandUnits"
-              :key="item.code"
-              class="board-table table-row"
-              :class="{ selected: selectedUnitCode === item.code }"
-              @click="focusUnit(item.code)"
+              v-for="step in planSteps"
+              :key="step.id"
+              class="steps-row table-body"
+              :class="[step.stateClass, { clickable: canOpenStepModal(step) }]"
+              @click="openStepModal(step)"
             >
-              <div class="unit-cell">
-                <strong>{{ item.level }}</strong>
-              </div>
-              <div class="unit-cell">
-                <strong>{{ item.area }}</strong>
-              </div>
-              <div class="unit-cell">
-                <strong>{{ item.code }}</strong>
-              </div>
-              <div class="unit-cell">
-                <strong>{{ item.distance }}</strong>
-              </div>
+              <span class="step-index">{{ step.id }}</span>
+              <span class="step-title">{{ step.title }}</span>
+              <span>{{ step.owner }}</span>
+              <span>{{ step.deadline }}</span>
+              <span>
+                <em class="step-state" :class="step.stateClass">{{ step.state }}</em>
+              </span>
             </div>
           </div>
-        </div>
+        </section>
       </div>
     </section>
 
-    <section class="panel smart-plan-panel">
-      <div class="panel-head smart-plan-head">
-        <div>
-          <p class="panel-kicker">智能路径建议</p>
+    <div v-if="showPlanModal" class="modal-mask" @click.self="closePlanLibraryModal">
+      <section class="plan-modal">
+        <div class="modal-head">
+          <div>
+            <p class="panel-kicker">应急预案库管理</p>
+            <h3>{{ planLibraryTab === 'setting' ? '自动预案设置' : '执行步骤管理' }}</h3>
+          </div>
+          <button type="button" class="modal-close" @click="closePlanLibraryModal">关闭</button>
         </div>
-        <div class="smart-plan-actions">
+
+        <div class="library-tab-switch">
           <button
-            class="primary-btn smart-plan-trigger"
-            :class="{ launched }"
-            :disabled="launched"
-            @click="launchPlan"
+            type="button"
+            class="library-tab-btn"
+            :class="{ active: planLibraryTab === 'steps' }"
+            @click="planLibraryTab = 'steps'"
           >
-            {{ launched ? '预案已启动' : '启动预案' }}
+            执行步骤管理
           </button>
-          <span class="badge" :class="launched ? 'success' : 'neutral'">
-            {{ launched ? '已下发人员与车辆路径建议' : '基于当前预警自动生成' }}
-          </span>
+          <button
+            type="button"
+            class="library-tab-btn"
+            :class="{ active: planLibraryTab === 'setting' }"
+            @click="planLibraryTab = 'setting'"
+          >
+            自动预案设置
+          </button>
         </div>
-      </div>
 
-      <div class="smart-plan-grid">
-        <article
-          v-for="group in planRecommendations"
-          :key="group.key"
-          class="smart-plan-card"
-          :class="group.key"
-        >
-          <div class="smart-plan-card-head">
-            <p class="panel-kicker">{{ group.kicker }}</p>
-            <h4>{{ group.title }}</h4>
-          </div>
-
-          <div class="smart-plan-list">
-            <div v-for="item in group.items" :key="item.code" class="smart-plan-item">
-              <div class="smart-plan-row">
-                <strong>{{ item.code }}</strong>
-                <span class="smart-plan-route">{{ item.route }}</span>
-                <span>{{ item.position }}</span>
-                <span>{{ item.area }}</span>
-                <span>{{ item.type }}</span>
-                <span>{{ item.distance }}</span>
-              </div>
+        <template v-if="planLibraryTab === 'setting'">
+          <div class="modal-summary-grid">
+            <div class="modal-summary-card">
+              <span>预警区域</span>
+              <strong>{{ warningSummary.area }}</strong>
+            </div>
+            <div class="modal-summary-card">
+              <span>挖机数量</span>
+              <strong>{{ emergencyPlanSetting.excavatorCount }} 台</strong>
+            </div>
+            <div class="modal-summary-card">
+              <span>卡车数量</span>
+              <strong>{{ emergencyPlanSetting.truckCount }} 台</strong>
+            </div>
+            <div class="modal-summary-card highlight">
+              <span>自动选择预案级别</span>
+              <strong>{{ emergencyPlanSetting.planLevel }}</strong>
             </div>
           </div>
-        </article>
-      </div>
 
-    </section>
+          <div class="modal-form-grid">
+            <label class="modal-field">
+              <span>触发时间</span>
+              <input :value="departureTime" readonly />
+            </label>
+            <label class="modal-field">
+              <span>响应时间</span>
+              <input :value="emergencyPlanSetting.responseTime" readonly />
+            </label>
+            <label class="modal-field">
+              <span>响应人员</span>
+              <textarea readonly>{{ emergencyPlanSetting.responsePeople }}</textarea>
+            </label>
+            <label class="modal-field">
+              <span>响应范围</span>
+              <input :value="emergencyPlanSetting.responseRange" readonly />
+            </label>
+            <label class="modal-field full-width">
+              <span>自动判定说明</span>
+              <textarea readonly>{{ emergencyPlanSetting.ruleDescription }}</textarea>
+            </label>
+          </div>
+        </template>
+
+        <template v-else>
+          <div class="steps-manage-list">
+            <div class="steps-manage-head">
+              <span>#</span>
+              <span>步骤内容</span>
+              <span>责任人</span>
+              <span>时限</span>
+              <span>状态</span>
+            </div>
+            <div
+              v-for="(item, index) in editablePlanSteps"
+              :key="item.id"
+              class="steps-manage-row"
+            >
+              <strong>{{ item.id }}</strong>
+              <input v-model="item.title" />
+              <input v-model="item.owner" />
+              <input v-model="item.deadline" />
+              <select v-model="item.stateClass">
+                <option value="done">已完成</option>
+                <option value="running">进行中</option>
+                <option value="pending">待启动</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="steps-manage-actions">
+            <button type="button" class="status-action-btn" @click="addPlanStep">新增步骤</button>
+            <button type="button" class="status-action-btn" @click="removeLastPlanStep" :disabled="editablePlanSteps.length <= 1">删除最后一步</button>
+          </div>
+        </template>
+
+        <div class="modal-footer">
+          <button type="button" class="status-action-btn" @click="closePlanLibraryModal">取消</button>
+          <button
+            type="button"
+            class="status-action-btn primary"
+            @click="confirmPlanLibrary"
+          >
+            确认应用
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <div v-if="showStepModal" class="modal-mask" @click.self="closeStepModal">
+      <section class="plan-modal step-modal">
+        <div class="modal-head">
+          <div>
+            <p class="panel-kicker">步骤处理</p>
+            <h3>{{ activeStep?.id }} {{ activeStep?.title }}</h3>
+          </div>
+          <button type="button" class="modal-close" @click="closeStepModal">关闭</button>
+        </div>
+
+        <div class="modal-summary-grid step-meta-grid">
+          <div class="modal-summary-card">
+            <span>责任人</span>
+            <strong>{{ activeStep?.owner }}</strong>
+          </div>
+          <div class="modal-summary-card">
+            <span>时限</span>
+            <strong>{{ activeStep?.deadline }}</strong>
+          </div>
+          <div class="modal-summary-card highlight">
+            <span>当前状态</span>
+            <strong>{{ activeStep?.state }}</strong>
+          </div>
+        </div>
+
+        <div class="media-preview-box">
+          <template v-if="displayMedia && displayMedia.type === 'video'">
+            <video class="media-preview" :src="displayMedia.url" controls></video>
+          </template>
+          <template v-else-if="displayMedia">
+            <img class="media-preview" :src="displayMedia.url" :alt="displayMedia.name || '步骤图片'" />
+          </template>
+          <template v-else>
+            <img class="media-preview" :src="placeholderImage" alt="占位图" />
+          </template>
+        </div>
+
+        <div class="upload-tip" v-if="stepModalMode === 'upload'">
+          该步骤状态为进行中，请上传图片或视频后完成该步骤。
+        </div>
+        <div class="upload-tip" v-else>
+          该步骤状态为已完成，可查看历史上传素材；若无素材则显示占位图。
+        </div>
+
+        <input
+          ref="stepFileInput"
+          type="file"
+          class="hidden-file-input"
+          accept="image/*,video/*"
+          @change="onStepMediaSelected"
+        />
+
+        <div class="modal-footer">
+          <button type="button" class="status-action-btn" @click="closeStepModal">关闭</button>
+          <button
+            v-if="stepModalMode === 'upload'"
+            type="button"
+            class="status-action-btn"
+            @click="triggerStepFilePicker"
+          >
+            选择图片/视频
+          </button>
+          <button
+            v-if="stepModalMode === 'upload'"
+            type="button"
+            class="status-action-btn primary"
+            :disabled="!pendingStepMedia"
+            @click="submitStepUpload"
+          >
+            上传并标记已完成
+          </button>
+        </div>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -118,8 +277,19 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 
 const threeContainer = ref(null);
-const selectedUnitCode = ref('P-07');
-const launched = ref(false);
+const selectedUnitCode = ref('P-31');
+const showPlanModal = ref(false);
+const planLibraryTab = ref('steps');
+const editablePlanSteps = ref([]);
+const planStepCounter = ref(7);
+const showStepModal = ref(false);
+const stepModalMode = ref('view');
+const activeStep = ref(null);
+const stepFileInput = ref(null);
+const pendingStepMedia = ref(null);
+const stepMediaStore = ref({});
+const placeholderImage =
+  'data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22960%22 height=%22540%22 viewBox=%220 0 960 540%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%221%22 y2=%221%22%3E%3Cstop offset=%220%25%22 stop-color=%22%230e223a%22/%3E%3Cstop offset=%22100%25%22 stop-color=%22%23173863%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%22960%22 height=%22540%22 fill=%22url(%23g)%22/%3E%3Ccircle cx=%22480%22 cy=%22255%22 r=%2266%22 fill=%22%233e6aa3%22 opacity=%220.45%22/%3E%3Cpath d=%22M220 390 L390 250 L500 340 L620 270 L740 390 Z%22 fill=%22%23527cb2%22 opacity=%220.6%22/%3E%3Ctext x=%2250%25%22 y=%2288%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 fill=%22%23cfe6ff%22 font-size=%2236%22 font-family=%22Microsoft YaHei,sans-serif%22%3E暂无上传素材%3C/text%3E%3C/svg%3E';
 
 let renderer;
 let scene;
@@ -128,113 +298,329 @@ let controls;
 let animationId;
 let pointSprites = new Map();
 
-const commandUnits = [
-  { code: 'P-07', type: '人员', level: '橙色', area: '北帮 3 号台阶', position: '撤离路线 A', route: '前往集结点 A', distance: '85 m', status: '撤离中' },
-  { code: 'P-12', type: '人员', level: '橙色', area: '运输道路东侧', position: '撤离路线 B', route: '前往集结点 B', distance: '132 m', status: '已确认' },
-  { code: 'P-19', type: '巡检人员', level: '橙色', area: '排土平台边缘', position: '巡检复核线', route: '向安全观测点移动', distance: '176 m', status: '复核中' },
-  { code: 'T-05', type: '运输车辆', level: '橙色', area: '北帮道路', position: '车辆绕行路线', route: '绕行 2 号辅路', distance: '240 m', status: '改道中' },
-  { code: 'T-11', type: '应急车辆', level: '橙色', area: '应急车库', position: '救援通道', route: '前往北帮入口', distance: '315 m', status: '前往中' },
-  { code: 'EX-07', type: '电铲设备', level: '橙色', area: '作业面边界', position: '设备撤离路线', route: '退出高风险区域', distance: '96 m', status: '待停机' }
+const warningSummary = {
+  level: '橙色',
+  area: '北帮 3 号台阶至运输道路'
+};
+
+const departureTime = '16:42:18';
+
+const warningAreaMachines = [
+  { code: 'EX-07', type: '挖机', area: warningSummary.area },
+  { code: 'TR-21', type: '卡车', area: warningSummary.area }
 ];
 
-const sortedCommandUnits = computed(() =>
-  [...commandUnits].sort((a, b) => Number.parseFloat(a.distance) - Number.parseFloat(b.distance))
-);
+const commandUnits = [
+  { code: 'P-31', type: '人员', area: warningSummary.area, position: '北帮台阶观察点', distance: '64 m', status: '现场值守中' },
+  { code: 'P-07', type: '人员', area: warningSummary.area, position: '疏散路线 A 段', distance: '85 m', status: '正在撤离' },
+  { code: 'EX-07', type: '设备', area: warningSummary.area, position: '作业面边坡设备位', distance: '96 m', status: '等待停机' },
+  { code: 'P-23', type: '人员', area: warningSummary.area, position: '北帮作业面', distance: '108 m', status: '执行转移' },
+  { code: 'P-12', type: '人员', area: warningSummary.area, position: '运输道路东侧', distance: '132 m', status: '等待确认' },
+  { code: 'T-05', type: '车辆', area: warningSummary.area, position: '北帮运输道路', distance: '240 m', status: '绕行中' },
+  { code: 'T-11', type: '车辆', area: '应急车库', position: '救援通道', distance: '315 m', status: '前往现场' },
+  { code: 'EQ-14', type: '设备', area: '东南排水区', position: '排水设施点位', distance: '560 m', status: '待命中' }
+];
 
-const planRecommendations = computed(() => {
-  const personItems = commandUnits
-    .filter((item) => item.type.includes('人员') || item.type.includes('安全员'))
-    .slice(0, 3);
-  const vehicleItems = commandUnits
-    .filter((item) => item.type.includes('车辆') || item.type.includes('设备'))
-    .slice(0, 3);
-
-  return [
-    {
-      key: 'person',
-      kicker: '人员路线',
-      title: '人员疏导建议',
-      items: personItems
-    },
-    {
-      key: 'vehicle',
-      kicker: '车辆路线',
-      title: '车辆与设备建议',
-      items: vehicleItems
-    }
-  ];
+const selectedUnit = computed(() => {
+  return commandUnits.find((item) => item.code === selectedUnitCode.value) ?? commandUnits[0];
 });
 
+const nearestPerson = computed(() => {
+  return commandUnits.find((item) => item.type === '人员') ?? commandUnits[0];
+});
 
+const nearestEquipment = computed(() => {
+  return commandUnits.find((item) => item.type === '设备') ?? commandUnits[0];
+});
+
+const emergencyPlanSetting = computed(() => {
+  const excavatorCount = warningAreaMachines.filter((item) => item.type === '挖机').length;
+  const truckCount = warningAreaMachines.filter((item) => item.type === '卡车').length;
+  const totalCount = excavatorCount + truckCount;
+
+  if (totalCount <= 2) {
+    return {
+      excavatorCount,
+      truckCount,
+      planLevel: 'IV级预警',
+      responseTime: '30分钟内',
+      responsePeople: '值班调度员 2 人、现场安全员 2 人、机动疏导人员 4 人',
+      responseRange: '预警区方圆 300 米',
+      ruleDescription: '当前预警区内共识别 1 台挖机、1 台卡车，设备数量处于低风险区间，系统自动匹配 IV 级预警。'
+    };
+  }
+
+  if (totalCount <= 4) {
+    return {
+      excavatorCount,
+      truckCount,
+      planLevel: 'III级预警',
+      responseTime: '20分钟内',
+      responsePeople: '值班调度员 2 人、现场安全员 4 人、设备联动人员 6 人',
+      responseRange: '预警区方圆 500 米',
+      ruleDescription: '当前设备总数进入中低风险区间，系统自动升级为 III 级预警，并扩大到 500 米范围组织联动响应。'
+    };
+  }
+
+  if (totalCount <= 6) {
+    return {
+      excavatorCount,
+      truckCount,
+      planLevel: 'II级预警',
+      responseTime: '10分钟内',
+      responsePeople: '调度中心 4 人、现场安全员 6 人、车辆疏导组 8 人、医疗保障组 2 人',
+      responseRange: '预警区方圆 800 米',
+      ruleDescription: '当前设备总数进入中高风险区间，系统自动切换 II 级预警，并对 800 米范围内人员车辆实施快速响应。'
+    };
+  }
+
+  return {
+    excavatorCount,
+    truckCount,
+    planLevel: 'I级预警',
+    responseTime: '5分钟内',
+    responsePeople: '应急指挥部全员、现场安全员 8 人、车辆疏导组 10 人、医疗与抢险保障组 6 人',
+    responseRange: '预警区方圆 1200 米',
+    ruleDescription: '当前设备总数达到高风险阈值，系统自动升级为 I 级预警，并对 1200 米范围实施最高等级应急响应。'
+  };
+});
+
+const planSteps = ref([
+  { id: '01', title: '发布紧急预警，全员推送', owner: '系统自动', deadline: '即时', state: '已完成', stateClass: 'done' },
+  { id: '02', title: '启动声光报警装置', owner: '调度中心', deadline: '5min', state: '已完成', stateClass: 'done' },
+  { id: '03', title: '组织危险区域人员疏散', owner: '李明华', deadline: '15min', state: '进行中', stateClass: 'running' },
+  { id: '04', title: '资源调度', owner: '调度中心', deadline: '10min', state: '进行中', stateClass: 'running' },
+  { id: '05', title: '联动停止无人驾驶车辆', owner: '系统自动', deadline: '即时', state: '已完成', stateClass: 'done' },
+  { id: '06', title: '现场勘查', owner: '张建国', deadline: '30min', state: '待启动', stateClass: 'pending' },
+  { id: '07', title: '治理措施并实施', owner: '技术部', deadline: '2h', state: '待启动', stateClass: 'pending' }
+]);
+
+const stateLabelMap = {
+  done: '已完成',
+  running: '进行中',
+  pending: '待启动'
+};
+
+const normalizeStepState = (step) => {
+  step.state = stateLabelMap[step.stateClass] ?? step.state ?? '待启动';
+  return step;
+};
+
+const cloneStep = (step) => ({
+  id: step.id,
+  title: step.title,
+  owner: step.owner,
+  deadline: step.deadline,
+  stateClass: step.stateClass,
+  state: step.state
+});
+
+const openPlanLibraryModal = () => {
+  planLibraryTab.value = 'steps';
+  editablePlanSteps.value = planSteps.value.map((step) => cloneStep(step));
+  planStepCounter.value = Math.max(...editablePlanSteps.value.map((item) => Number(item.id)), 0);
+  showPlanModal.value = true;
+};
+
+const closePlanLibraryModal = () => {
+  showPlanModal.value = false;
+};
+
+const addPlanStep = () => {
+  planStepCounter.value += 1;
+  const id = String(planStepCounter.value).padStart(2, '0');
+  editablePlanSteps.value.push({
+    id,
+    title: `步骤${id}`,
+    owner: '待分配',
+    deadline: '30min',
+    stateClass: 'pending',
+    state: '待启动'
+  });
+};
+
+const removeLastPlanStep = () => {
+  if (editablePlanSteps.value.length <= 1) return;
+  editablePlanSteps.value.pop();
+};
+
+const confirmPlanLibrary = () => {
+  if (planLibraryTab.value === 'steps') {
+    planSteps.value = editablePlanSteps.value.map((step) =>
+      normalizeStepState({
+        ...step,
+        title: step.title?.trim() || '未命名步骤',
+        owner: step.owner?.trim() || '待分配',
+        deadline: step.deadline?.trim() || '待定'
+      })
+    );
+  }
+  closePlanLibraryModal();
+};
+
+const csvCell = (value) => {
+  const text = String(value ?? '');
+  return `"${text.replace(/"/g, '""')}"`;
+};
+
+const downloadHistoryPlanTable = () => {
+  const now = new Date();
+  const datePart = now.toISOString().slice(0, 10);
+  const timePart = now.toTimeString().slice(0, 8).replace(/:/g, '-');
+
+  const baseRows = [
+    ['历史应急预案导出', '', '', ''],
+    ['导出时间', `${datePart} ${now.toTimeString().slice(0, 8)}`, '', ''],
+    ['', '', '', ''],
+    ['预警数据项', '值', '', ''],
+    ['预警等级', warningSummary.level, '', ''],
+    ['预警区域', warningSummary.area, '', ''],
+    ['触发时间', departureTime, '', ''],
+    ['最近人员编号', nearestPerson.value.code, '', ''],
+    ['与预警区距离', selectedUnit.value.distance, '', ''],
+    ['', '', '', ''],
+    ['自动预案设置', '值', '', ''],
+    ['挖机数量', `${emergencyPlanSetting.value.excavatorCount} 台`, '', ''],
+    ['卡车数量', `${emergencyPlanSetting.value.truckCount} 台`, '', ''],
+    ['自动预案级别', emergencyPlanSetting.value.planLevel, '', ''],
+    ['响应时间', emergencyPlanSetting.value.responseTime, '', ''],
+    ['响应人员', emergencyPlanSetting.value.responsePeople, '', ''],
+    ['响应范围', emergencyPlanSetting.value.responseRange, '', ''],
+    ['', '', '', ''],
+    ['预警预案执行步骤', '', '', '', '', '', ''],
+    ['编号', '步骤', '责任人', '时限', '状态', '上传素材', '素材类型']
+  ];
+
+  const stepRows = planSteps.value.map((step) => {
+    const media = stepMediaStore.value[step.id];
+    return [
+      step.id,
+      step.title,
+      step.owner,
+      step.deadline,
+      step.state,
+      media ? '已上传' : '未上传',
+      media ? (media.type === 'video' ? '视频' : '图片') : '无'
+    ];
+  });
+
+  const rows = [...baseRows, ...stepRows];
+  const csv = rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `历史应急预案_${datePart}_${timePart}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+const displayMedia = computed(() => {
+  if (!activeStep.value) return null;
+  if (stepModalMode.value === 'upload' && pendingStepMedia.value) return pendingStepMedia.value;
+  return stepMediaStore.value[activeStep.value.id] ?? null;
+});
+
+const canOpenStepModal = (step) => step.stateClass === 'running' || step.stateClass === 'done';
+
+const openStepModal = (step) => {
+  if (!canOpenStepModal(step)) return;
+  activeStep.value = step;
+  stepModalMode.value = step.stateClass === 'running' ? 'upload' : 'view';
+  if (pendingStepMedia.value?.url) {
+    URL.revokeObjectURL(pendingStepMedia.value.url);
+  }
+  pendingStepMedia.value = null;
+  showStepModal.value = true;
+};
+
+const closeStepModal = () => {
+  showStepModal.value = false;
+  activeStep.value = null;
+  if (pendingStepMedia.value?.url) {
+    URL.revokeObjectURL(pendingStepMedia.value.url);
+  }
+  pendingStepMedia.value = null;
+  if (stepFileInput.value) {
+    stepFileInput.value.value = '';
+  }
+};
+
+const triggerStepFilePicker = () => {
+  if (stepFileInput.value) {
+    stepFileInput.value.click();
+  }
+};
+
+const onStepMediaSelected = (event) => {
+  const file = event.target?.files?.[0];
+  if (!file) return;
+
+  if (pendingStepMedia.value?.url) {
+    URL.revokeObjectURL(pendingStepMedia.value.url);
+  }
+
+  pendingStepMedia.value = {
+    name: file.name,
+    type: file.type.startsWith('video/') ? 'video' : 'image',
+    url: URL.createObjectURL(file)
+  };
+};
+
+const submitStepUpload = () => {
+  if (!activeStep.value || !pendingStepMedia.value) return;
+
+  const stepId = activeStep.value.id;
+  const existing = stepMediaStore.value[stepId];
+  if (existing?.url) {
+    URL.revokeObjectURL(existing.url);
+  }
+
+  stepMediaStore.value[stepId] = {
+    name: pendingStepMedia.value.name,
+    type: pendingStepMedia.value.type,
+    url: pendingStepMedia.value.url
+  };
+
+  activeStep.value.state = '已完成';
+  activeStep.value.stateClass = 'done';
+  closeStepModal();
+};
 const mapUnits = [
-  { code: 'P-07', type: 'person', color: '#67d7ff', x: 32, z: 31, blink: true },
-  { code: 'P-12', type: 'person', color: '#67d7ff', x: 20, z: 20 },
-  { code: 'P-19', type: 'person', color: '#67d7ff', x: 9, z: 10 },
+  { code: 'P-31', type: 'person', color: '#62d0ff', x: 30, z: 19, blink: true },
+  { code: 'P-07', type: 'person', color: '#62d0ff', x: 32, z: 31, blink: false },
+  { code: 'P-12', type: 'person', color: '#62d0ff', x: 20, z: 20 },
+  { code: 'P-23', type: 'person', color: '#62d0ff', x: 26, z: 26 },
+  { code: 'EX-07', type: 'equipment', color: '#ff9d5c', x: 16, z: 34 },
   { code: 'T-05', type: 'vehicle', color: '#ffd166', x: 43, z: 16 },
   { code: 'T-11', type: 'vehicle', color: '#ffd166', x: 56, z: 2 },
-  { code: 'EX-07', type: 'equipment', color: '#ff8c69', x: 16, z: 34 }
+  { code: 'EQ-14', type: 'equipment', color: '#7ed9a3', x: -34, z: -38 }
 ];
 
 const mapRoutes = [
   {
     label: '人员撤离路线',
-    color: '#59d8ff',
-    points: [
-      [32, 31],
-      [22, 24],
-      [10, 18],
-      [-2, 12]
-    ],
+    color: '#4fd7ff',
+    points: [[32, 31], [22, 24], [10, 18], [-2, 12]],
     labelAt: [-1, 14]
   },
   {
     label: '车辆绕行路线',
     color: '#ffd166',
-    points: [
-      [43, 16],
-      [56, 14],
-      [66, 8],
-      [76, -2]
-    ],
+    points: [[43, 16], [56, 14], [66, 8], [76, -2]],
     labelAt: [60, 12]
   },
   {
     label: '设备撤离路线',
-    color: '#ff8c69',
-    points: [
-      [16, 34],
-      [10, 42],
-      [2, 48],
-      [-8, 54]
-    ],
+    color: '#ff9d5c',
+    points: [[16, 34], [10, 42], [2, 48], [-8, 54]],
     labelAt: [3, 46]
   }
 ];
 
-commandUnits.push(
-  { code: 'P-23', type: '人员', level: '橙色', area: '北帮作业面', position: '撤离路线一段', route: '向北侧安全点移动', distance: '108 m', status: '撤离中' },
-  { code: 'P-28', type: '人员', level: '橙色', area: '运输道路西侧', position: '撤离路线二段', route: '向安全通道转移', distance: '154 m', status: '待确认' },
-  { code: 'P-31', type: '安全员', level: '橙色', area: '预警区边缘', position: '现场管控线', route: '引导人员撤离', distance: '64 m', status: '值守中' },
-  { code: 'P-36', type: '巡检人员', level: '无风险', area: '南侧观测点', position: '日常巡查线', route: '维持原观察路线', distance: '610 m', status: '正常巡查' },
-  { code: 'T-22', type: '运输车辆', level: '无风险', area: '南侧运输道路', position: '常规通行路线', route: '按既定线路通行', distance: '420 m', status: '运行正常' },
-  { code: 'EQ-14', type: '排水设备', level: '无风险', area: '东南排水区', position: '设备待命位', route: '保持原地待命', distance: '560 m', status: '状态正常' }
-);
-
-mapUnits.push(
-  { code: 'P-23', type: 'person', color: '#67d7ff', x: 26, z: 26 },
-  { code: 'P-28', type: 'person', color: '#67d7ff', x: 14, z: 17 },
-  { code: 'P-31', type: 'person', color: '#67d7ff', x: 30, z: 19 },
-  { code: 'P-36', type: 'person', color: '#79e2b0', x: -42, z: -26 },
-  { code: 'T-22', type: 'vehicle', color: '#79e2b0', x: -56, z: -8 },
-  { code: 'EQ-14', type: 'equipment', color: '#79e2b0', x: -34, z: -38 }
-);
-
-
-
-
-
-
-
+const getTerrainHeight = (x, z) => Math.sin(x / 10) * Math.cos(z / 10) * 8;
 
 const focusUnit = (code) => {
   selectedUnitCode.value = code;
@@ -244,32 +630,6 @@ const focusUnit = (code) => {
     camera.position.set(unit.x + 14, 86, unit.z + 12);
   }
   updateSelectionVisuals();
-};
-
-const launchPlan = () => {
-  launched.value = true;
-};
-
-const createSpotTexture = () => {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 256;
-  const ctx = canvas.getContext('2d');
-  ctx.beginPath();
-  ctx.arc(128, 128, 120, 0, Math.PI * 2);
-
-  const gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 120);
-  gradient.addColorStop(0, 'rgba(255,255,255,0.4)');
-  gradient.addColorStop(0.8, 'rgba(255,255,255,0.3)');
-  gradient.addColorStop(1, 'rgba(255,255,255,0.1)');
-  ctx.fillStyle = gradient;
-  ctx.fill();
-
-  ctx.lineWidth = 4;
-  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-  ctx.stroke();
-
-  return new THREE.CanvasTexture(canvas);
 };
 
 const drawRoundedRect = (ctx, x, y, width, height, radius) => {
@@ -290,6 +650,28 @@ const drawRoundedRect = (ctx, x, y, width, height, radius) => {
   ctx.quadraticCurveTo(x, y + height, x, y + height - r);
   ctx.lineTo(x, y + r);
   ctx.quadraticCurveTo(x, y, x + r, y);
+};
+
+const createSpotTexture = () => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  ctx.beginPath();
+  ctx.arc(128, 128, 120, 0, Math.PI * 2);
+
+  const gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 120);
+  gradient.addColorStop(0, 'rgba(255,255,255,0.45)');
+  gradient.addColorStop(0.8, 'rgba(255,255,255,0.2)');
+  gradient.addColorStop(1, 'rgba(255,255,255,0.06)');
+  ctx.fillStyle = gradient;
+  ctx.fill();
+
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = 'rgba(255,255,255,0.72)';
+  ctx.stroke();
+
+  return new THREE.CanvasTexture(canvas);
 };
 
 const createMapMarkerTexture = (type, color, code) => {
@@ -322,7 +704,7 @@ const createMapMarkerTexture = (type, color, code) => {
     ctx.arc(92 * scale, 170 * scale, 18 * scale, 0, Math.PI * 2);
     ctx.arc(166 * scale, 170 * scale, 18 * scale, 0, Math.PI * 2);
     ctx.fill();
-  } else if (type === 'equipment') {
+  } else {
     ctx.fillStyle = color;
     ctx.fillRect(74 * scale, 120 * scale, 108 * scale, 42 * scale);
     ctx.fillRect(100 * scale, 88 * scale, 44 * scale, 34 * scale);
@@ -336,15 +718,6 @@ const createMapMarkerTexture = (type, color, code) => {
     ctx.arc(82 * scale, 172 * scale, 16 * scale, 0, Math.PI * 2);
     ctx.arc(176 * scale, 172 * scale, 16 * scale, 0, Math.PI * 2);
     ctx.fill();
-  } else {
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(128 * scale, 116 * scale, 38 * scale, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#0b2540';
-    ctx.beginPath();
-    ctx.arc(128 * scale, 116 * scale, 16 * scale, 0, Math.PI * 2);
-    ctx.fill();
   }
 
   ctx.shadowColor = 'transparent';
@@ -355,14 +728,16 @@ const createMapMarkerTexture = (type, color, code) => {
   const labelX = 128 * scale - labelWidth / 2;
   const labelY = 182 * scale - labelHeight / 2;
 
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+  ctx.fillStyle = 'rgba(4, 14, 26, 0.88)';
   drawRoundedRect(ctx, labelX, labelY, labelWidth, labelHeight, 4 * scale);
   ctx.fill();
 
   ctx.lineWidth = 1 * scale;
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
   ctx.stroke();
-  ctx.fillStyle = '#fff';
+
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
   ctx.fillText(code, 128 * scale, 182 * scale);
 
   const texture = new THREE.CanvasTexture(canvas);
@@ -404,82 +779,6 @@ const createTextLabelTexture = (text, color) => {
   return texture;
 };
 
-const getTerrainHeight = (x, z) => Math.sin(x / 10) * Math.cos(z / 10) * 8;
-
-const updateSelectionVisuals = () => {
-  pointSprites.forEach((sprite, code) => {
-    const isSelected = selectedUnitCode.value === code;
-    sprite.userData.isSelected = isSelected;
-    sprite.material.opacity = isSelected ? 1 : 0.92;
-  });
-};
-
-const createIconTexture = (type, color, deviceId) => {
-  const scale = 2;
-  const canvas = document.createElement('canvas');
-  canvas.width = 256 * scale;
-  canvas.height = 256 * scale;
-  const ctx = canvas.getContext('2d');
-
-  const icons = { GNSS: '📍', DEEP: '⬍', RADAR: '📡', SURFACE: '🗺', CRACK: '🪨', FIRE: '🔥', WATER: '💧', GROUND: '🧭', STRESS: '📳', VIB: '📢', SAT: '🛰' };
-  const emoji = icons[type] || '●';
-
-  ctx.save();
-  ctx.translate(128 * scale, 112 * scale);
-  ctx.rotate(-45 * Math.PI / 180);
-  ctx.beginPath();
-  if (ctx.roundRect) {
-    ctx.roundRect(-24 * scale, -24 * scale, 48 * scale, 48 * scale, [24 * scale, 24 * scale, 24 * scale, 0]);
-  } else {
-    ctx.rect(-24 * scale, -24 * scale, 48 * scale, 48 * scale);
-  }
-  ctx.fillStyle = '#fff';
-  ctx.shadowColor = 'rgba(0,0,0,0.6)';
-  ctx.shadowBlur = 12 * scale;
-  ctx.shadowOffsetY = 4 * scale;
-  ctx.fill();
-
-  ctx.shadowColor = 'transparent';
-  ctx.lineWidth = 3 * scale;
-  ctx.strokeStyle = '#85C6F1';
-  ctx.stroke();
-  ctx.restore();
-
-  ctx.font = `${28 * scale}px Arial`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(emoji, 128 * scale, 112 * scale);
-
-  ctx.font = `bold ${16 * scale}px "Microsoft YaHei", sans-serif`;
-  const textWidth = ctx.measureText(deviceId).width;
-  const labelWidth = textWidth + 24 * scale;
-  const labelHeight = 26 * scale;
-  const labelX = 128 * scale - labelWidth / 2;
-  const labelY = 182 * scale - labelHeight / 2;
-
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-  if (ctx.roundRect) {
-    ctx.beginPath();
-    ctx.roundRect(labelX, labelY, labelWidth, labelHeight, 4 * scale);
-    ctx.fill();
-  } else {
-    ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
-  }
-
-  ctx.lineWidth = 1 * scale;
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-  ctx.stroke();
-
-  ctx.fillStyle = '#fff';
-  ctx.fillText(deviceId, 128 * scale, 182 * scale);
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.minFilter = THREE.LinearFilter;
-  texture.magFilter = THREE.LinearFilter;
-  texture.generateMipmaps = false;
-  return texture;
-};
-
 const createTerrainZone = (centerX, centerZ, colorHex, spotTexture) => {
   const geometry = new THREE.PlaneGeometry(60, 60, 64, 64);
   geometry.rotateX(-Math.PI / 2);
@@ -501,7 +800,7 @@ const createTerrainZone = (centerX, centerZ, colorHex, spotTexture) => {
     transparent: true,
     depthWrite: false,
     blending: THREE.NormalBlending,
-    opacity: 0.8
+    opacity: 0.76
   });
 
   const mesh = new THREE.Mesh(geometry, material);
@@ -509,11 +808,19 @@ const createTerrainZone = (centerX, centerZ, colorHex, spotTexture) => {
   return mesh;
 };
 
+const updateSelectionVisuals = () => {
+  pointSprites.forEach((sprite, code) => {
+    const isSelected = selectedUnitCode.value === code;
+    sprite.material.opacity = isSelected ? 1 : 0.9;
+    sprite.userData.isSelected = isSelected;
+  });
+};
+
 const initMap = () => {
   if (!threeContainer.value) return;
 
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0a1a2a);
+  scene.background = new THREE.Color(0x081624);
 
   const width = threeContainer.value.clientWidth;
   const height = threeContainer.value.clientHeight;
@@ -526,7 +833,6 @@ const initMap = () => {
   renderer.setSize(width, height);
   renderer.domElement.style.display = 'block';
   threeContainer.value.appendChild(renderer.domElement);
-
   renderer.domElement.addEventListener('contextmenu', (event) => event.preventDefault());
 
   controls = new OrbitControls(camera, renderer.domElement);
@@ -543,129 +849,14 @@ const initMap = () => {
   controls.rotateKey = 'Control';
   controls.target.set(18, 0, 16);
 
-  if (false) {
-  const glowTexture = createGlowTexture();
   const spotTexture = createSpotTexture();
-  const allPointsGroup = new THREE.Group();
+  const warningZone = createTerrainZone(24, 24, '#ff8b4d', spotTexture);
+  warningZone.scale.set(1.2, 1, 1.05);
+  scene.add(warningZone);
 
-  const icons = { GNSS: '📍', DEEP: '⬍', RADAR: '📡', SURFACE: '🗺', CRACK: '🪨', FIRE: '🔥', WATER: '💧', GROUND: '🧭', STRESS: '📳', VIB: '📢', SAT: '🛰' };
-  const types = Object.keys(icons);
-  const colors = ['#F57676', '#FFA500', '#fadb14', '#66B1FF', '#71C446'];
-  const zoneCenters = [
-    { x: 35, z: 35 },
-    { x: -35, z: 35 },
-    { x: -35, z: -35 },
-    { x: 35, z: -35 }
-  ];
-
-  for (let i = 0; i < 4; i++) {
-    const zoneMesh = createTerrainZone(zoneCenters[i].x, zoneCenters[i].z, colors[i], spotTexture);
-    scene.add(zoneMesh);
-  }
-
-  let redGnssCount = 0;
-  const positions = [];
-  const colorArray = [];
-  const baseColorObj = new THREE.Color();
-
-  for (let i = 0; i < 150; i++) {
-    let type = types[i % types.length];
-    if (i < 7) type = 'RADAR';
-    else if (type === 'RADAR') type = 'GNSS';
-
-    let alarmIdx = (i * 7) % 5;
-    const isOnline = i % 8 !== 0;
-    if (type === 'GNSS' && alarmIdx === 0) {
-      if (redGnssCount < 2) redGnssCount++;
-      else alarmIdx = 4;
-    }
-
-    const targetColor = isOnline ? colors[alarmIdx] : '#999999';
-    const deviceId = `${type}${i}`;
-
-    let x;
-    let z;
-    if (isOnline && alarmIdx < 4) {
-      const center = zoneCenters[alarmIdx];
-      const radius = Math.random() * 20;
-      const angle = Math.random() * Math.PI * 2;
-      x = center.x + Math.cos(angle) * radius;
-      z = center.z + Math.sin(angle) * radius;
-    } else {
-      let isValid = false;
-      while (!isValid) {
-        x = (Math.random() - 0.5) * 160;
-        z = (Math.random() - 0.5) * 160;
-        isValid = true;
-        for (let j = 0; j < zoneCenters.length; j++) {
-          const dist = Math.sqrt(Math.pow(x - zoneCenters[j].x, 2) + Math.pow(z - zoneCenters[j].z, 2));
-          if (dist <= 25) {
-            isValid = false;
-            break;
-          }
-        }
-      }
-    }
-
-    const y = Math.sin(x / 10) * Math.cos(z / 10) * 8;
-
-    positions.push(x, y, z);
-    baseColorObj.set(targetColor);
-    colorArray.push(baseColorObj.r, baseColorObj.g, baseColorObj.b);
-
-    const iconTexture = createIconTexture(type, targetColor, deviceId);
-    const spriteMaterial = new THREE.SpriteMaterial({
-      map: iconTexture,
-      transparent: true,
-      depthTest: true,
-      depthWrite: false
-    });
-
-    const sprite = new THREE.Sprite(spriteMaterial);
-    sprite.renderOrder = 10;
-    sprite.position.set(x, y, z);
-    sprite.scale.set(12, 12, 1);
-    sprite.center.set(0.5, 1 - 160 / 256);
-
-    if (alarmIdx === 0 && isOnline) {
-      sprite.userData.isBlinking = true;
-    }
-
-    allPointsGroup.add(sprite);
-  }
-
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colorArray, 3));
-
-  const pointsMaterial = new THREE.PointsMaterial({
-    size: 8,
-    map: glowTexture,
-    transparent: true,
-    blending: THREE.AdditiveBlending,
-    depthTest: true,
-    depthWrite: false,
-    vertexColors: true
-  });
-
-  const points = new THREE.Points(geometry, pointsMaterial);
-  points.renderOrder = 2;
-
-  allPointsGroup.add(points);
-  scene.add(allPointsGroup);
-  }
-
-  const spotTexture = createSpotTexture();
-  const allPointsGroup = new THREE.Group();
+  const pointGroup = new THREE.Group();
   const routeGroup = new THREE.Group();
   pointSprites = new Map();
-  const warningZones = [{ x: 24, z: 24, color: '#ff8a4c' }];
-
-  warningZones.forEach((zone) => {
-    const zoneMesh = createTerrainZone(zone.x, zone.z, zone.color, spotTexture);
-    zoneMesh.scale.set(1.2, 1, 1.05);
-    scene.add(zoneMesh);
-  });
 
   mapUnits.forEach((unit) => {
     const y = getTerrainHeight(unit.x, unit.z);
@@ -684,17 +875,16 @@ const initMap = () => {
     sprite.center.set(0.5, 1 - 160 / 256);
     sprite.userData.isBlinking = Boolean(unit.blink);
     sprite.userData.baseScale = 12;
-    sprite.userData.code = unit.code;
-    allPointsGroup.add(sprite);
+    pointGroup.add(sprite);
     pointSprites.set(unit.code, sprite);
   });
 
-  scene.add(allPointsGroup);
+  scene.add(pointGroup);
   updateSelectionVisuals();
 
   mapRoutes.forEach((route) => {
     const curvePoints = route.points.map(([x, z]) => {
-      const y = Math.sin(x / 10) * Math.cos(z / 10) * 8 + 1.8;
+      const y = getTerrainHeight(x, z) + 1.8;
       return new THREE.Vector3(x, y, z);
     });
 
@@ -707,11 +897,10 @@ const initMap = () => {
       opacity: 0.95
     });
 
-    const line = new THREE.Line(geometry, material);
-    routeGroup.add(line);
+    routeGroup.add(new THREE.Line(geometry, material));
 
     const [labelX, labelZ] = route.labelAt;
-    const labelY = Math.sin(labelX / 10) * Math.cos(labelZ / 10) * 8 + 5;
+    const labelY = getTerrainHeight(labelX, labelZ) + 5;
     const labelTexture = createTextLabelTexture(route.label, route.color);
     const labelMaterial = new THREE.SpriteMaterial({
       map: labelTexture,
@@ -726,9 +915,9 @@ const initMap = () => {
 
   scene.add(routeGroup);
 
-  const gridHelper = new THREE.GridHelper(200, 30, 0x1c3d90, 0x1c3d90);
+  const gridHelper = new THREE.GridHelper(200, 30, 0x2452a4, 0x17396e);
   gridHelper.position.y = -10;
-  gridHelper.material.opacity = 0.15;
+  gridHelper.material.opacity = 0.18;
   gridHelper.material.transparent = true;
   scene.add(gridHelper);
 
@@ -750,6 +939,7 @@ const initMap = () => {
   };
 
   animate();
+  focusUnit(selectedUnitCode.value);
 };
 
 const handleResize = () => {
@@ -769,10 +959,16 @@ onMounted(() => {
 onUnmounted(() => {
   cancelAnimationFrame(animationId);
   window.removeEventListener('resize', handleResize);
+  if (pendingStepMedia.value?.url) {
+    URL.revokeObjectURL(pendingStepMedia.value.url);
+  }
+  Object.values(stepMediaStore.value).forEach((media) => {
+    if (media?.url) URL.revokeObjectURL(media.url);
+  });
   if (controls) controls.dispose();
   if (renderer) {
     renderer.dispose();
-    if (renderer.domElement && renderer.domElement.parentNode) {
+    if (renderer.domElement?.parentNode) {
       renderer.domElement.parentNode.removeChild(renderer.domElement);
     }
   }
@@ -781,146 +977,43 @@ onUnmounted(() => {
 
 <style scoped>
 .emergency-page {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  color: #16325c;
-}
-
-.panel {
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid rgba(28, 61, 144, 0.08);
-  border-radius: 20px;
-  box-shadow: 0 18px 40px rgba(28, 61, 144, 0.08);
-}
-
-.panel-kicker {
-  font-size: 12px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: #6b86b4;
-}
-
-.primary-btn,
-.ghost-btn {
-  border-radius: 999px;
-  padding: 10px 18px;
-  font-size: 13px;
-  cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.primary-btn {
-  border: none;
-  color: #fff;
-  background: linear-gradient(135deg, #1c64f2, #163c8f);
-  box-shadow: 0 12px 24px rgba(28, 100, 242, 0.24);
-}
-
-.ghost-btn {
-  border: 1px solid rgba(28, 61, 144, 0.16);
-  color: #1c3d90;
-  background: #f8fbff;
-}
-
-.primary-btn:hover,
-.ghost-btn:hover {
-  transform: translateY(-1px);
-}
-
-.ghost-btn.small {
-  padding: 7px 12px;
-  font-size: 12px;
-}
-
-.panel {
-  padding: 20px;
-}
-
-.command-board {
-  padding: 14px;
-}
-
-.panel-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 18px;
-}
-
-.command-board .panel-head {
-  margin-bottom: 10px;
-}
-
-.panel-head h3 {
-  margin-top: 4px;
-  font-size: 20px;
-  color: #17376f;
-}
-
-.command-board .panel-head h3 {
-  font-size: 16px;
-}
-
-.command-board .panel-kicker {
-  font-size: 11px;
-}
-
-.badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 82px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.command-board .badge {
-  min-width: 72px;
-  padding: 5px 10px;
-  font-size: 11px;
-}
-
-.badge.warning {
-  background: #fff0df;
-  color: #d9781f;
-}
-
-.badge.success {
-  background: #e7f8ee;
-  color: #1d8e5a;
-}
-
-.badge.neutral {
-  background: #edf4ff;
-  color: #4470b8;
-}
-
-.command-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.18fr) minmax(400px, 0.92fr);
-  gap: 16px;
-  align-items: stretch;
-}
-
-.map-board {
-  position: relative;
-  min-height: 500px;
+  height: calc(100vh - 112px);
+  min-height: 0;
+  color: #dce9ff;
   overflow: hidden;
-  border-radius: 18px;
-  border: 1px solid rgba(133, 198, 241, 0.18);
-  background: #0a1a2a;
+}
+
+.emergency-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(360px, 0.86fr);
+  gap: 14px;
+  height: 100%;
+  min-height: 0;
+}
+
+.panel,
+.map-panel {
+  border-radius: 24px;
+  overflow: hidden;
+  border: 1px solid rgba(91, 144, 255, 0.16);
+  box-shadow: 0 24px 60px rgba(6, 19, 39, 0.22);
+}
+
+.map-panel {
+  position: relative;
+  min-height: 0;
+  height: 100%;
+  background:
+    radial-gradient(circle at top left, rgba(46, 107, 255, 0.2), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(79, 215, 255, 0.16), transparent 26%),
+    linear-gradient(160deg, #091726 0%, #0c1d31 48%, #0b1830 100%);
 }
 
 .three-viewport {
-  position: relative;
   width: 100%;
-  height: 500px;
+  height: 100%;
+  min-height: 0;
   cursor: grab;
-  background: #0a1a2a;
 }
 
 .three-viewport:active {
@@ -931,609 +1024,604 @@ onUnmounted(() => {
   position: absolute;
   z-index: 3;
   pointer-events: none;
-  border-radius: 999px;
-  font-size: 11px;
-  line-height: 1;
 }
 
-.warning-chip {
-  top: 12px;
-  left: 12px;
-  padding: 12px 20px;
-  color: #fff0df;
-  background: rgba(255, 138, 76, 0.2);
-  border: 1px solid rgba(255, 138, 76, 0.38);
-  box-shadow: 0 12px 28px rgba(255, 138, 76, 0.24);
-  font-size: 16px;
+.warning-chip,
+.area-chip,
+.controls-chip,
+.status-badge,
+.steps-tag {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
   font-weight: 700;
 }
 
-.controls-chip {
+.warning-chip {
   top: 14px;
-  right: 14px;
-  padding: 7px 11px;
-  color: #d8efff;
-  background: rgba(7, 18, 34, 0.72);
-  border: 1px solid rgba(133, 198, 241, 0.18);
+  left: 14px;
+  padding: 10px 16px;
+  color: #ffe7d5;
+  background: rgba(255, 139, 77, 0.18);
+  border: 1px solid rgba(255, 156, 107, 0.4);
+  box-shadow: 0 14px 32px rgba(255, 139, 77, 0.2);
 }
 
-.board-sidebar {
+.area-chip {
+  top: 14px;
+  left: 146px;
+  padding: 10px 16px;
+  color: #d9ecff;
+  background: rgba(9, 29, 54, 0.7);
+  border: 1px solid rgba(122, 185, 255, 0.22);
+}
+
+.controls-chip {
+  right: 14px;
+  top: 14px;
+  padding: 8px 12px;
+  font-size: 11px;
+  color: #a9caeb;
+  background: rgba(9, 23, 38, 0.72);
+  border: 1px solid rgba(122, 185, 255, 0.18);
+}
+
+.right-column {
+  display: grid;
+  grid-template-rows: minmax(0, 0.52fr) minmax(0, 1.18fr);
+  gap: 10px;
+  height: 100%;
+  min-height: 0;
+}
+
+.panel {
+  padding: 16px;
+  background: linear-gradient(180deg, #fbfdff 0%, #f4f8ff 100%);
+  border: 1px solid rgba(28, 61, 144, 0.08);
+  box-shadow: 0 16px 36px rgba(28, 61, 144, 0.1);
+  backdrop-filter: blur(16px);
+}
+
+.status-panel {
+  padding: 12px 14px;
+}
+
+.panel-head {
   display: flex;
-  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.panel-kicker {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #7c93b8;
+}
+
+.panel-head h3 {
+  margin-top: 2px;
+  font-size: 18px;
+  color: #1f3f78;
+}
+
+.status-badge {
+  min-width: 76px;
+  justify-content: center;
+  padding: 7px 12px;
+  color: #d6ebff;
+  background: rgba(33, 79, 155, 0.34);
+  border: 1px solid rgba(108, 164, 255, 0.24);
+  font-size: 12px;
+}
+
+.status-actions {
+  display: flex;
+  align-items: center;
   gap: 10px;
 }
 
-.sidebar-summary {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.status-action-btn {
+  border: 1px solid rgba(74, 120, 193, 0.2);
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: #eef4ff;
+  color: #2f5da4;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.status-action-btn.primary {
+  color: #fff;
+  background: linear-gradient(135deg, #2f72d8, #2353ab);
+}
+
+.status-action-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(67, 124, 211, 0.35);
+  background: #e6efff;
+}
+
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(3, 10, 20, 0.68);
+  backdrop-filter: blur(10px);
+}
+
+.plan-modal {
+  width: min(860px, 100%);
+  border-radius: 24px;
+  border: 1px solid rgba(28, 61, 144, 0.1);
+  background: linear-gradient(180deg, #ffffff 0%, #f5f9ff 100%);
+  box-shadow: 0 22px 56px rgba(28, 61, 144, 0.18);
+  padding: 22px;
+}
+
+.modal-head,
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 12px;
 }
 
-.summary-card,
-.plan-meta div,
-.resource-card,
-.snapshot-card {
-  padding: 12px 14px;
-  border-radius: 16px;
-  background: #f7faff;
-  border: 1px solid rgba(58, 103, 187, 0.08);
-}
-
-.summary-card span,
-.plan-meta span,
-.resource-card span,
-.snapshot-card span,
-.unit-cell p {
-  font-size: 12px;
-  color: #7890b1;
-}
-
-.summary-card strong,
-.plan-meta strong,
-.resource-card strong,
-.unit-cell strong {
-  display: block;
-  margin-top: 6px;
-  font-size: 14px;
-}
-
-.board-list {
-  display: grid;
-  gap: 8px;
-  max-height: 404px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-.board-list::-webkit-scrollbar {
-  width: 8px;
-}
-
-.board-list::-webkit-scrollbar-thumb {
+.modal-close {
+  border: 1px solid rgba(74, 120, 193, 0.2);
   border-radius: 999px;
-  background: rgba(92, 128, 190, 0.35);
+  padding: 8px 14px;
+  background: #eef4ff;
+  color: #2f5da4;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
 }
 
-.board-list::-webkit-scrollbar-track {
-  background: rgba(237, 244, 255, 0.7);
-}
-
-.board-table {
+.library-tab-switch {
   display: grid;
-  grid-template-columns: 0.82fr 1.18fr 1.1fr 0.78fr;
-  gap: 8px;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.library-tab-btn {
+  border: 1px solid rgba(74, 120, 193, 0.18);
+  border-radius: 12px;
+  padding: 10px 14px;
+  background: #f3f7ff;
+  color: #3b629f;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.library-tab-btn.active {
+  color: #fff;
+  background: linear-gradient(135deg, #2f72d8, #2353ab);
+  border-color: rgba(46, 106, 197, 0.42);
+}
+
+.modal-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.steps-manage-list {
+  margin-top: 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.steps-manage-head,
+.steps-manage-row {
+  display: grid;
+  grid-template-columns: 56px 1.5fr 1fr 0.8fr 0.8fr;
+  gap: 10px;
   align-items: center;
   padding: 10px 12px;
   border-radius: 14px;
 }
 
-.table-head {
+.steps-manage-head {
+  background: #edf4ff;
+  color: #5f7eb2;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.steps-manage-row {
+  border: 1px solid rgba(74, 120, 193, 0.12);
+  background: #f8fbff;
+}
+
+.steps-manage-row strong {
+  color: #5f7eb2;
+}
+
+.steps-manage-row input,
+.steps-manage-row select {
+  width: 100%;
+  border: 1px solid rgba(74, 120, 193, 0.18);
+  border-radius: 10px;
+  background: #ffffff;
+  color: #274b86;
+  padding: 7px 9px;
+  font: inherit;
+}
+
+.steps-manage-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 10px;
+}
+
+.modal-summary-card {
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(74, 120, 193, 0.12);
+  background: linear-gradient(180deg, #f8fbff, #f1f6ff);
+}
+
+.modal-summary-card.highlight {
+  box-shadow: inset 0 0 0 1px rgba(255, 154, 77, 0.18);
+}
+
+.modal-summary-card span,
+.modal-field span {
+  display: block;
+  font-size: 12px;
+  color: #6d87b0;
+}
+
+.modal-summary-card strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 18px;
+  color: #1f3f78;
+  line-height: 1.3;
+}
+
+.modal-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.modal-field {
+  display: grid;
+  gap: 8px;
+}
+
+.modal-field.full-width {
+  grid-column: 1 / -1;
+}
+
+.modal-field input,
+.modal-field textarea {
+  width: 100%;
+  border: 1px solid rgba(74, 120, 193, 0.18);
+  border-radius: 16px;
+  background: #ffffff;
+  color: #274b86;
+  padding: 12px 14px;
+  font: inherit;
+  resize: none;
+}
+
+.modal-field input {
+  min-height: 46px;
+}
+
+.modal-field textarea {
+  min-height: 92px;
+  line-height: 1.6;
+}
+
+.modal-footer {
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.status-table {
+  display: grid;
+  gap: 6px;
+}
+
+.status-row {
+  display: grid;
+  grid-template-columns: 0.72fr 1.28fr 0.72fr 1.05fr 0.7fr;
+  gap: 12px;
+  align-items: center;
+}
+
+.status-head {
+  padding: 7px 14px;
+  border-radius: 14px;
   background: #edf4ff;
   color: #5f7eb2;
   font-size: 11px;
   font-weight: 700;
 }
 
-.table-row {
+.status-body {
+  min-height: 58px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(74, 120, 193, 0.12);
   background: #f8fbff;
-  border: 1px solid rgba(28, 61, 144, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(95, 126, 178, 0.06);
+}
+
+.status-head span,
+.status-body strong {
+  min-width: 0;
+}
+
+.status-body strong {
+  font-size: 14px;
+  color: #1f3f78;
+  line-height: 1.2;
+  word-break: break-word;
+  font-weight: 700;
+}
+
+.status-body .warning-level-text {
+  color: #ff9a4d;
+}
+
+.steps-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 14px 16px;
+}
+
+.steps-tag {
+  justify-content: center;
+  min-width: 96px;
+  padding: 7px 12px;
+  color: #fff;
+  background: linear-gradient(135deg, #2f72d8, #2353ab);
+  border: 1px solid rgba(46, 106, 197, 0.3);
+  font-size: 12px;
+}
+
+.steps-table {
+  display: grid;
+  gap: 10px;
+  height: 100%;
+  min-height: 0;
+}
+
+.steps-row {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1.7fr) minmax(90px, 0.9fr) 72px 88px;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-size: 12px;
+  color: #3f5f90;
+}
+
+.table-head {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  background: #edf4ff;
+  color: #5f7eb2;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.table-body {
+  border: 1px solid rgba(74, 120, 193, 0.12);
+  background: #f8fbff;
+}
+
+.table-body span {
+  color: #4f6f9f;
+  font-weight: 600;
+}
+
+.table-body.clickable {
   cursor: pointer;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
-.table-row:hover,
-.table-row.selected {
-  border-color: rgba(28, 100, 242, 0.28);
-  box-shadow: 0 10px 24px rgba(28, 100, 242, 0.12);
+.table-body.clickable:hover {
   transform: translateY(-1px);
+  border-color: rgba(92, 170, 255, 0.32);
+  box-shadow: 0 12px 28px rgba(7, 25, 52, 0.32);
 }
 
-.unit-cell p {
-  margin-top: 4px;
-  font-size: 11px;
+.table-body.done {
+  box-shadow: inset 0 0 0 1px rgba(49, 194, 132, 0.08);
 }
 
-.overview-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 14px;
+.table-body.running {
+  box-shadow: inset 0 0 0 1px rgba(255, 179, 84, 0.14);
 }
 
-.smart-plan-panel {
-  padding: 18px 20px 20px;
+.table-body.pending {
+  box-shadow: inset 0 0 0 1px rgba(98, 146, 220, 0.08);
 }
 
-.smart-plan-head {
-  margin-bottom: 10px;
-}
-
-.smart-plan-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.smart-plan-trigger {
-  padding: 9px 18px;
-  box-shadow: 0 10px 20px rgba(28, 100, 242, 0.2);
-}
-
-.smart-plan-trigger:disabled {
-  cursor: default;
-  opacity: 1;
-}
-
-.smart-plan-trigger.launched {
-  background: linear-gradient(135deg, #17b26a, #119b5f);
-  box-shadow: 0 10px 20px rgba(23, 178, 106, 0.24);
-}
-
-.smart-plan-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.smart-plan-card {
-  min-height: 0;
-  padding: 14px;
-  border-radius: 18px;
-  border: 1px solid rgba(28, 61, 144, 0.08);
-  background: linear-gradient(180deg, #fbfdff, #f4f8ff);
-}
-
-.smart-plan-card.person {
-  box-shadow: inset 0 0 0 1px rgba(89, 216, 255, 0.08);
-}
-
-.smart-plan-card.vehicle {
-  box-shadow: inset 0 0 0 1px rgba(255, 209, 102, 0.12);
-}
-
-.smart-plan-card-head h4 {
-  margin-top: 4px;
-  font-size: 17px;
-  color: #17376f;
-}
-
-.smart-plan-list {
-  display: grid;
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.smart-plan-item {
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(28, 61, 144, 0.07);
-}
-
-.smart-plan-row {
-  display: grid;
-  grid-template-columns: 72px 1.2fr 1fr 1fr 0.7fr 0.6fr;
-  align-items: center;
-  gap: 10px;
-}
-
-.smart-plan-row strong {
-  color: #1c3d90;
-  font-size: 14px;
-}
-
-.smart-plan-row span {
-  color: #4f678b;
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-.smart-plan-route {
-  color: #17376f;
-  font-weight: 600;
-}
-
-
-.compact-plan-shell {
-  display: grid;
-  grid-template-columns: minmax(0, 1.14fr) minmax(320px, 0.86fr);
-  gap: 14px;
-  align-items: start;
-}
-
-.compact-detail-grid {
-  display: grid;
-  grid-template-columns: 1.05fr 0.8fr 0.95fr;
-  gap: 14px;
-}
-
-.compact-plan-meta {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
-.compact-plan-meta > div {
-  min-height: 78px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: linear-gradient(180deg, #f8fbff, #f3f8ff);
-  border: 1px solid rgba(28, 61, 144, 0.08);
-}
-
-.compact-plan-meta span,
-.compact-resource-card span {
-  display: block;
-  font-size: 12px;
-  color: #6e86aa;
-}
-
-.compact-plan-meta strong,
-.compact-resource-card strong {
-  display: block;
-  margin-top: 8px;
-  color: #17376f;
-  font-size: 15px;
-  line-height: 1.45;
-}
-
-.compact-action-flow {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.compact-flow-item {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
-  min-height: 138px;
-  padding: 12px;
-}
-
-.flow-topline {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.compact-flow-item .flow-index {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  font-size: 12px;
-}
-
-.compact-flow-item strong,
-.compact-route-item strong,
-.compact-timeline-item strong,
-.feedback-main strong {
-  color: #17376f;
-  font-size: 14px;
-}
-
-.compact-flow-item p,
-.compact-route-item p,
-.compact-timeline-item p,
-.feedback-main p,
-.compact-resource-card p {
-  display: -webkit-box;
-  margin-top: 0;
-  overflow: hidden;
-  line-height: 1.55;
-  color: #5f728f;
-  font-size: 12px;
-  -webkit-box-orient: vertical;
-}
-
-.compact-flow-item p,
-.feedback-main p {
-  -webkit-line-clamp: 2;
-}
-
-.compact-route-summary {
-  padding: 14px;
-}
-
-.compact-route-head h4 {
-  margin-top: 2px;
-  font-size: 16px;
-}
-
-.compact-route-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.compact-route-item {
-  min-height: 96px;
-  padding: 12px 12px 12px 14px;
-}
-
-.compact-route-item p {
-  margin-top: 6px;
-  -webkit-line-clamp: 3;
-}
-
-.action-flow,
-.timeline,
-.resource-cards,
-.feedback-list {
-  display: grid;
-  gap: 12px;
-}
-
-.flow-item {
-  display: grid;
-  grid-template-columns: 48px 1fr auto;
-  gap: 14px;
-  align-items: center;
-  padding: 14px 16px;
-  border-radius: 16px;
-  border: 1px solid rgba(28, 61, 144, 0.08);
-}
-
-.flow-item.done { background: #f1faf5; }
-.flow-item.active { background: #fff7eb; }
-.flow-item.pending { background: #f7f9fd; }
-
-.flow-index {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #eaf2ff;
-  color: #1c3d90;
+.step-index,
+.step-title {
   font-weight: 700;
 }
 
-.flow-content p,
-.timeline-body p,
-.feedback-item p,
-.resource-card p {
-  margin-top: 6px;
-  line-height: 1.6;
-  color: #5f728f;
-  font-size: 13px;
+.step-index {
+  color: #5f7eb2;
 }
 
-.flow-state {
-  flex-shrink: 0;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: rgba(28, 61, 144, 0.08);
-  font-size: 11px;
-  color: #7388a7;
+.step-title {
+  color: #1f3f78;
 }
 
-.timeline-item {
-  display: grid;
-  grid-template-columns: 20px 1fr;
-  gap: 12px;
-}
-
-.compact-timeline {
-  gap: 8px;
-}
-
-.compact-timeline-item {
-  gap: 10px;
-}
-
-.timeline-track {
-  position: relative;
-  width: 20px;
-}
-
-.timeline-track::before {
-  content: '';
-  position: absolute;
-  left: 8px;
-  top: 4px;
-  bottom: -12px;
-  width: 2px;
-  background: #dfe8f6;
-}
-
-.timeline-track::after {
-  content: '';
-  position: absolute;
-  top: 6px;
-  left: 3px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #b9c9e4;
-}
-
-.timeline-item.done .timeline-track::after { background: #1d8e5a; }
-.timeline-item.active .timeline-track::after { background: #ef9a35; }
-
-.timeline-body {
-  padding: 14px 16px;
-  border-radius: 16px;
-  background: #f8fbff;
-}
-
-.compact-timeline-item .timeline-body {
-  padding: 12px 14px;
-}
-
-.compact-timeline-item p {
-  margin-top: 4px;
-  -webkit-line-clamp: 2;
-}
-
-.timeline-top {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 13px;
-}
-
-.timeline-top span {
-  flex-shrink: 0;
-  color: #7086a7;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.compact-resource-cards {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.compact-resource-card {
-  min-height: 98px;
-  padding: 12px 14px;
-  border-radius: 16px;
-  background: #f8fbff;
-}
-
-.feedback-item {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 16px;
-  border-radius: 16px;
-  background: #f8fbff;
-}
-
-.feedback-main {
-  min-width: 0;
-}
-
-.compact-feedback-list {
-  gap: 8px;
-}
-
-.compact-feedback-item {
-  align-items: flex-start;
-  padding: 12px 14px;
-}
-
-.compact-feedback-extra {
-  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.feedback-extra {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-top: 12px;
-}
-
-.compact-evidence-card {
-  padding: 12px 14px;
-  border-radius: 16px;
-  background: #f8fbff;
-}
-
-.snapshot-placeholder {
-  margin-top: 10px;
-  min-height: 110px;
-  border-radius: 14px;
-  display: flex;
+.step-state {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #7d94b7;
-  background: linear-gradient(135deg, #eef5ff, #dfeafb);
-  border: 1px dashed rgba(28, 61, 144, 0.18);
-}
-
-.compact-snapshot-placeholder {
-  min-height: 74px;
-  margin-top: 8px;
+  min-width: 64px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-style: normal;
   font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
 }
 
-.archive-lines {
+.step-state.done {
+  color: #0f7a54;
+  background: #cfeee4;
+  border: 1px solid #8fd7c0;
+}
+
+.step-state.running {
+  color: #9a5c00;
+  background: #f7e4c8;
+  border: 1px solid #e9bf86;
+}
+
+.step-state.pending {
+  color: #a13a60;
+  background: #f3d4e1;
+  border: 1px solid #e0a8c0;
+}
+
+.step-modal {
+  width: min(760px, 100%);
+}
+
+.step-meta-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.media-preview-box {
+  margin-top: 14px;
+  border: 1px solid rgba(74, 120, 193, 0.16);
+  border-radius: 16px;
+  overflow: hidden;
+  background: #edf4ff;
+}
+
+.media-preview {
+  width: 100%;
+  max-height: 360px;
+  display: block;
+  object-fit: contain;
+  background: #f5f9ff;
+}
+
+.upload-tip {
   margin-top: 10px;
-  display: grid;
-  gap: 10px;
-  color: #5f728f;
-  font-size: 13px;
+  color: #6d87b0;
+  font-size: 12px;
 }
 
-.compact-evidence-card .archive-lines {
-  margin-top: 8px;
-  gap: 6px;
-  font-size: 12px;
+.hidden-file-input {
+  display: none;
+}
+
+@media (max-width: 1400px) {
+  .status-row {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 1200px) {
-  .command-layout,
-  .detail-grid,
-  .compact-plan-shell {
+  .emergency-shell {
     grid-template-columns: 1fr;
   }
 
-  .sidebar-summary {
-    grid-template-columns: 1fr;
+  .right-column,
+  .map-panel,
+  .three-viewport {
+    min-height: 420px;
+    height: auto;
+  }
+
+  .emergency-page {
+    height: auto;
+    overflow: visible;
+  }
+
+  .modal-summary-grid,
+  .modal-form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .steps-manage-head,
+  .steps-manage-row {
+    grid-template-columns: 48px 1.2fr 1fr 0.9fr 0.9fr;
   }
 }
 
 @media (max-width: 768px) {
+  .emergency-page,
+  .emergency-shell,
+  .map-panel,
+  .three-viewport,
+  .right-column {
+    min-height: auto;
+  }
 
-  .plan-meta,
-  .feedback-extra,
-  .board-table {
+  .status-row,
+  .steps-row {
     grid-template-columns: 1fr;
   }
 
-  .smart-plan-grid {
+  .status-actions,
+  .modal-head,
+  .modal-footer,
+  .library-tab-switch,
+  .modal-summary-grid,
+  .modal-form-grid {
     grid-template-columns: 1fr;
   }
 
-  .smart-plan-row {
+  .status-actions,
+  .modal-head,
+  .modal-footer {
+    display: grid;
+  }
+
+  .steps-manage-head,
+  .steps-manage-row {
     grid-template-columns: 1fr;
   }
 
-  .smart-plan-actions {
+  .steps-manage-actions {
     flex-direction: column;
-    align-items: stretch;
   }
 
-  .compact-action-flow,
-  .compact-route-grid,
-  .compact-resource-cards,
-  .compact-feedback-extra {
+  .step-meta-grid {
     grid-template-columns: 1fr;
   }
 
-  .map-board {
-    min-height: 420px;
+  .area-chip {
+    left: 20px;
+    top: 70px;
   }
 
-  .three-viewport {
-    height: 420px;
+  .controls-chip {
+    position: static;
+    margin: 14px;
+    display: inline-flex;
   }
 }
 </style>
+

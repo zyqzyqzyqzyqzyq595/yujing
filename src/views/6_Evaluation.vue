@@ -1,159 +1,602 @@
+没问题！针对您的两个具体需求，我做了以下精准改进：
+
+1. **新增表头**：在左下角“闭环处置效率”列表中，增加了“环节”、“平均时长”、“状态”这三个表头，并且严格对齐了下方的数据列。
+2. **成功率数据联动**：将右下角的标题明确标注为“(各区域成功率)”，同时**在底层逻辑中将这几个区域的成功率平均值直接与中部 KPI 卡片的“成功率”绑定**。现在无论是初始加载还是您切换时间范围，系统都会先计算区域成功率，然后算出准确的平均成功率赋予 KPI，确保数据完全对应、符合逻辑。
+
+没有修改任何其他功能和布局结构，依旧保持严格单屏无滚动条。以下是最终的完整代码：
+
+```vue
 <template>
   <div class="view-page">
-    <h2 class="page-title">系统配置与效能评估</h2>
-
-    <section class="section-container">
+    <div class="header-row">
       <div class="section-header">
-        <h3>预警效能评估与优化</h3>
-        <span class="subtitle">评估指标体系：准确性、及时性、处置效率</span>
+        <h2 class="page-title">系统配置与效能评估</h2>
+      </div>
+      <div class="time-filter">
+        <label>评估时间范围：</label>
+        <input type="month" v-model="selectedDate" @change="fetchDashboardData" class="date-picker" />
+      </div>
+    </div>
+
+    <div class="charts-container">
+      <div class="chart-card">
+        <div class="chart-title">一级预警 (次)</div>
+        <div ref="chartLevel1" class="echart-box"></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">二级预警 (次)</div>
+        <div ref="chartLevel2" class="echart-box"></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">三级预警 (次)</div>
+        <div ref="chartLevel3" class="echart-box"></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">四级预警 (次)</div>
+        <div ref="chartLevel4" class="echart-box"></div>
+      </div>
+      <div class="chart-card focus-card">
+        <div class="chart-title">关注矿区重点风险区域</div>
+        <div ref="chartFocusArea" class="echart-box"></div>
+      </div>
+    </div>
+
+    <div class="kpi-container">
+      <div class="kpi-card">
+        <div class="kpi-header">漏报率</div>
+        <div class="kpi-value warning-text">{{ kpiData.missRate }}%</div>
+        <div class="kpi-desc">实际发生但未触发预警的事件比例</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-header">误报率</div>
+        <div class="kpi-value warning-text">{{ kpiData.falseRate }}%</div>
+        <div class="kpi-desc">预警触发但未形成有效险情的比例</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-header">成功率</div>
+        <div class="kpi-value success-text">{{ kpiData.successRate }}%</div>
+        <div class="kpi-desc">预警触发且现场有对应的宏观现象</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-header">平均闭环处置时间</div>
+        <div class="kpi-value info-text">{{ kpiData.avgCloseTime }} <span class="unit">h</span></div>
+        <div class="kpi-desc">预警发出到隐患关闭的平均时长</div>
+      </div>
+    </div>
+
+    <div class="subtitle-bar">漏报以及误报率针对一级、二级预警</div>
+
+    <div class="bottom-container">
+      <div class="panel-card half-width">
+        <div class="panel-header">
+          <div class="panel-title">闭环处置效率</div>
+          <div class="panel-action">
+            <select v-model="selectedAlertLevel" @change="updateDisposalData" class="level-select">
+              <option value="1">一级预警</option>
+              <option value="2">二级预警</option>
+              <option value="3">三级预警</option>
+              <option value="4">四级预警</option>
+            </select>
+          </div>
+        </div>
+        <div class="panel-subtitle">关注预警发出、任务下达、现场反馈和隐患关闭全过程。</div>
+
+        <div class="process-list">
+          <div class="process-list-header">
+            <span class="step-name-hd">环节</span>
+            <span class="step-time-hd">平均时长</span>
+            <span class="step-status-hd">状态</span>
+          </div>
+
+          <div class="process-item" v-for="(item, index) in currentDisposalData" :key="index">
+            <span class="step-name">{{ item.step }}</span>
+            <span class="step-time">{{ item.time }}</span>
+            <span class="step-status" :class="item.statusType">{{ item.status }}</span>
+          </div>
+        </div>
       </div>
 
-      <div class="kpi-grid">
-        <div class="sys-card kpi-card">
-          <h4>预警准确性 (综合)</h4>
-          <div class="kpi-value">98.5%</div>
-          <div class="kpi-detail">漏报率: 0.5% | 误报率: 1.0%</div>
+      <div class="panel-card half-width">
+        <div class="panel-header">
+          <div class="panel-title">多维度评估分析 <span style="font-size: 13px; font-weight: normal; color: #666; margin-left: 5px;">(各区域成功率)</span></div>
+          <div class="panel-subtitle" style="margin-left: auto;">支持按照时间、区域等维度查看系统运行表现。</div>
         </div>
-        <div class="sys-card kpi-card">
-          <h4>预警及时性</h4>
-          <div class="kpi-value">12 <span class="unit">分钟</span></div>
-          <div class="kpi-detail">平均临滑预报提前量</div>
+
+        <div class="progress-list">
+          <div class="progress-item" v-for="(item, index) in regionSuccessRates" :key="index">
+            <span class="region-name">{{ item.region }}</span>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" :style="{ width: item.rate + '%' }"></div>
+            </div>
+            <span class="region-rate">{{ item.rate }}%</span>
+          </div>
         </div>
-        <div class="sys-card kpi-card">
-          <h4>闭环处置效率</h4>
-          <div class="kpi-value">2.5 <span class="unit">小时</span></div>
-          <div class="kpi-detail">预警发出到隐患关闭平均时长</div>
+
+        <div class="conclusion-box">
+          <div class="conclusion-header">
+            <span>识别结论</span>
+            <span class="tag">南帮偏弱</span>
+          </div>
+          <div class="conclusion-text">
+            南帮区域误报率持续偏高，建议优先复核背景样本范围与扰动数据筛除规则。
+          </div>
         </div>
       </div>
-    </section>
-
-    <section class="section-container config-section">
-      <div class="section-header">
-        <h3>预警参数设置</h3>
-      </div>
-
-      <div class="config-form">
-        <div class="sys-card config-card">
-          <div class="card-title">
-            <i class="icon">📊</i> 样本容量设置
-          </div>
-          <div class="form-item">
-            <label>历史数据时间窗口</label>
-            <div class="input-with-unit">
-              <input type="text" value="180">
-              <span class="unit-tag">天</span>
-            </div>
-            <p class="form-tip warning">重要参数：影响趋势判断的稳定性与灵敏度</p>
-          </div>
-        </div>
-
-        <div class="sys-card config-card">
-          <div class="card-title">
-            <i class="icon">🕒</i> 数据采集频率设置
-          </div>
-          <div class="form-item">
-            <label>基准采集频率</label>
-            <input type="text" value="1次/小时" class="full-width">
-          </div>
-          <div class="form-item dynamic-row">
-            <div class="label-group">
-              <label>动态调整频率</label>
-              <p class="form-tip">平衡数据传输成本与预警实时性需求</p>
-            </div>
-            <div class="switch-control">
-              <input type="checkbox" checked id="dynamic-switch">
-              <label for="dynamic-switch"></label>
-            </div>
-          </div>
-          <div class="dynamic-config-box">
-            <span>当变形速率 ></span>
-            <input type="text" value="0.5" class="mini-input">
-            <span>mm/天时，自动提升采集频率至：</span>
-            <input type="text" value="1次/30分钟" class="short-input">
-          </div>
-        </div>
-
-        <div class="sys-card config-card">
-          <div class="card-title">
-            <i class="icon">⚖️</i> 显著性水平(α)设置
-          </div>
-          <div class="form-item">
-            <label>显著性水平值</label>
-            <input type="text" value="0.05" class="full-width">
-            <div class="slider-container">
-              <span class="slider-label">更严格</span>
-              <input type="range" min="0.01" max="0.1" step="0.01" value="0.05">
-              <span class="slider-label">更宽松</span>
-            </div>
-            <p class="form-tip">用于模型初始化或基准数据更新时的正态分布检验</p>
-          </div>
-        </div>
-
-        <div class="form-actions">
-          <button class="btn-secondary">× 取消</button>
-          <button class="btn-outline">✓ 应用</button>
-          <button class="btn-primary">💾 确定</button>
-        </div>
-      </div>
-    </section>
+    </div>
   </div>
 </template>
 
+<script setup>
+import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import * as echarts from 'echarts';
+
+// 基础分类常量
+const equipmentTypes = ['GNSS', '深部位移', '雷达', '地质', '裂缝', '煤自燃', '降雨', '地下水', '应力', '震动', '遥感'];
+const regionTypes = ['北帮', '东帮', '南帮', '西帮', '中央区域'];
+
+// DOM 引用
+const chartLevel1 = ref(null);
+const chartLevel2 = ref(null);
+const chartLevel3 = ref(null);
+const chartLevel4 = ref(null);
+const chartFocusArea = ref(null);
+
+// 状态变量
+const selectedDate = ref('2026-04'); // 默认选中时间
+const selectedAlertLevel = ref('1'); // 默认选中一级预警图表
+let chartInstances = [];
+
+// 右下角：区域成功率数据 (初始数据计算均值为 87.3)
+const regionSuccessRates = ref([
+  { region: '东帮', rate: 88 },
+  { region: '南帮', rate: 81 },
+  { region: '北排土场', rate: 93 }
+]);
+
+// KPI 数据源 (成功率与多维度评估分析数据初始对齐)
+const kpiData = ref({
+  missRate: 2.8,
+  falseRate: 5.6,
+  successRate: 87.3,
+  avgCloseTime: 3.2
+});
+
+// 左下角：各环节闭环时间模拟数据库
+const allDisposalData = {
+  '1': [
+    { step: '预警推送', time: '1.8 min', status: '正常', statusType: 'success' },
+    { step: '调度确认', time: '6.5 min', status: '可优化', statusType: 'warning' },
+    { step: '现场响应', time: '12.4 min', status: '波动较大', statusType: 'danger' },
+    { step: '隐患关闭', time: '3.2 h', status: '持续跟踪', statusType: 'info' }
+  ],
+  '2': [
+    { step: '预警推送', time: '2.5 min', status: '正常', statusType: 'success' },
+    { step: '调度确认', time: '10.0 min', status: '正常', statusType: 'success' },
+    { step: '现场响应', time: '20.5 min', status: '可优化', statusType: 'warning' },
+    { step: '隐患关闭', time: '5.5 h', status: '正常', statusType: 'success' }
+  ],
+  '3': [
+    { step: '预警推送', time: '5.0 min', status: '正常', statusType: 'success' },
+    { step: '调度确认', time: '15.0 min', status: '正常', statusType: 'success' },
+    { step: '现场响应', time: '30.0 min', status: '正常', statusType: 'success' },
+    { step: '隐患关闭', time: '12.0 h', status: '正常', statusType: 'success' }
+  ],
+  '4': [
+    { step: '预警推送', time: '10.0 min', status: '正常', statusType: 'success' },
+    { step: '调度确认', time: '30.0 min', status: '正常', statusType: 'success' },
+    { step: '现场响应', time: '2.0 h', status: '正常', statusType: 'success' },
+    { step: '隐患关闭', time: '24.0 h', status: '正常', statusType: 'success' }
+  ]
+};
+const currentDisposalData = ref(allDisposalData['1']);
+
+// 核心：生成饼图数据 (模拟)
+const generatePieData = (names) => {
+  return names.map(name => ({
+    name,
+    value: Math.floor(Math.random() * 50) + 1
+  }));
+};
+
+// 渲染单个 ECharts 环形图 (适配亮色主题风格)
+const initDonutChart = (domRef, color, data, name) => {
+  const chart = echarts.init(domRef.value);
+  const option = {
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: 'rgba(255,255,255,0.95)',
+      borderColor: '#dcdfe6',
+      textStyle: { color: '#333' }
+    },
+    color: [color, '#f0f2f5', '#e2e8f0', '#cbd5e1', '#94a3b8', '#64748b', '#8195c0', '#92a9db', '#a4bdf5', '#b6d2ff', '#c8e6ff'],
+    series: [
+      {
+        name: name,
+        type: 'pie',
+        radius: ['55%', '80%'],
+        avoidLabelOverlap: false,
+        itemStyle: {
+          borderColor: '#ffffff',
+          borderWidth: 2
+        },
+        label: { show: false },
+        data: data.sort((a,b) => b.value - a.value)
+      }
+    ]
+  };
+  chart.setOption(option);
+  chartInstances.push(chart);
+};
+
+// 初始化所有图表
+const initAllCharts = () => {
+  chartInstances.forEach(chart => chart.dispose());
+  chartInstances = [];
+
+  initDonutChart(chartLevel1, '#f5222d', generatePieData(equipmentTypes), '一级预警'); // 红
+  initDonutChart(chartLevel2, '#fa8c16', generatePieData(equipmentTypes), '二级预警'); // 橙
+  initDonutChart(chartLevel3, '#faad14', generatePieData(equipmentTypes), '三级预警'); // 黄
+  initDonutChart(chartLevel4, '#1890ff', generatePieData(equipmentTypes), '四级预警'); // 蓝
+  initDonutChart(chartFocusArea, '#333333', generatePieData(regionTypes), '风险区域'); // 黑
+};
+
+// 触发数据更新(时间筛选改变时)
+const fetchDashboardData = () => {
+  // 1. 模拟生成新的区域成功率
+  const newRegionRates = [
+    { region: '东帮', rate: Math.floor(75 + Math.random() * 20) },
+    { region: '南帮', rate: Math.floor(75 + Math.random() * 20) },
+    { region: '北排土场', rate: Math.floor(75 + Math.random() * 20) }
+  ];
+  regionSuccessRates.value = newRegionRates;
+
+  // 2. 根据各区域成功率，计算出对应的平均成功率
+  const avgSuccess = (newRegionRates.reduce((sum, item) => sum + item.rate, 0) / newRegionRates.length).toFixed(1);
+
+  // 3. 更新 KPI 数据（成功率保持对应）
+  kpiData.value = {
+    missRate: (Math.random() * 5).toFixed(1),
+    falseRate: (Math.random() * 10).toFixed(1),
+    successRate: avgSuccess,
+    avgCloseTime: (2 + Math.random() * 5).toFixed(1)
+  };
+
+  nextTick(() => {
+    initAllCharts();
+  });
+};
+
+// 触发处置效果下拉切换
+const updateDisposalData = () => {
+  currentDisposalData.value = allDisposalData[selectedAlertLevel.value];
+};
+
+// 生命周期钩子
+onMounted(() => {
+  initAllCharts();
+  window.addEventListener('resize', () => {
+    chartInstances.forEach(chart => chart.resize());
+  });
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', () => {
+    chartInstances.forEach(chart => chart.resize());
+  });
+  chartInstances.forEach(chart => chart.dispose());
+});
+</script>
+
 <style scoped>
-/* 核心修改：使用 calc(100vh - 60px) 避开系统顶部导航栏的高度，极致压缩内边距 */
-.view-page { padding: 15px; background: #f0f2f5; height: 100%; max-height: calc(100vh - 60px); box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; }
-.page-title { margin-top: 0; margin-bottom: 15px; color: #1c3d90; font-weight: bold; border-left: 4px solid #1c3d90; padding-left: 10px; font-size: 18px; }
+.view-page {
+  background-color: #f0f2f5;
+  color: #333;
+  padding: 15px 20px;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  gap: 15px;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
 
-.section-container { margin-bottom: 15px; }
-/* 底部容器：吸收剩余高度，并加 min-height: 0 避免内容过载撑破盒子 */
-.config-section { flex: 1; display: flex; flex-direction: column; margin-bottom: 0; min-height: 0; }
-.section-header { margin-bottom: 10px; display: flex; align-items: baseline; gap: 15px; }
-.section-header h3 { font-size: 16px; color: #333; margin: 0; }
-.subtitle { font-size: 12px; color: #666; }
+.header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+.section-header {
+  display: flex;
+  align-items: center;
+}
+.page-title {
+  margin: 0;
+  font-size: 18px;
+  color: #1c3d90;
+  font-weight: bold;
+  border-left: 4px solid #1c3d90;
+  padding-left: 10px;
+  line-height: 1;
+}
+.time-filter {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  color: #333;
+  font-weight: bold;
+}
+.date-picker {
+  background: #fff;
+  border: 1px solid #dcdfe6;
+  color: #333;
+  padding: 6px 12px;
+  border-radius: 4px;
+  outline: none;
+  margin-left: 10px;
+  font-family: inherit;
+  transition: border-color 0.3s;
+}
+.date-picker:focus {
+  border-color: #1c3d90;
+}
 
-/* KPI 样式 */
-.kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
-.kpi-card { padding: 12px 15px; text-align: center; border-top: 3px solid #1c3d90; background: #fff; border-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
-.kpi-card h4 { font-size: 13px; color: #666; margin-bottom: 5px; margin-top: 0; }
-.kpi-value { font-size: 26px; font-weight: bold; color: #1c3d90; }
-.kpi-value .unit { font-size: 14px; font-weight: normal; }
-.kpi-detail { margin-top: 5px; font-size: 12px; color: #999; }
+.charts-container {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  height: 160px;
+  flex-shrink: 0;
+}
+.chart-card {
+  flex: 1;
+  background: #fff;
+  border: 1px solid #dcdfe6;
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 2px 12px 0 rgba(0,0,0,0.05);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.chart-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px 0 rgba(0,0,0,0.1);
+}
+.focus-card {
+  border: 2px solid #1c3d90;
+}
+.chart-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 5px;
+  text-align: center;
+}
+.echart-box {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
 
-/* 底部配置网格：横向排列三个卡片 */
-.config-form { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; width: 100%; flex: 1; min-height: 0; }
-.config-card { padding: 12px 15px; background: #fff; border-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); display: flex; flex-direction: column; }
-.card-title { font-size: 14px; font-weight: bold; color: #1c3d90; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid #f0f0f0; padding-bottom: 8px; margin-top: 0; }
+.kpi-container {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 15px;
+  height: 100px;
+  flex-shrink: 0;
+}
+.kpi-card {
+  background: linear-gradient(145deg, #ffffff 0%, #f8fbff 100%);
+  border: 1px solid #dcdfe6;
+  border-radius: 6px;
+  padding: 15px 20px;
+  box-shadow: 0 2px 12px 0 rgba(0,0,0,0.05);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.kpi-header {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 4px;
+  font-weight: bold;
+}
+.kpi-value {
+  font-size: 26px;
+  font-weight: bold;
+  margin-bottom: 2px;
+  font-family: Arial, sans-serif;
+}
+.warning-text { color: #f5222d; }
+.success-text { color: #52c41a; }
+.info-text { color: #1c3d90; }
+.kpi-value .unit { font-size: 14px; font-weight: normal; color: #666;}
+.kpi-desc {
+  font-size: 12px;
+  color: #999;
+}
 
-.form-item { margin-bottom: 10px; }
-.form-item label { display: block; font-size: 13px; margin-bottom: 4px; color: #333; font-weight: 500; }
-.form-tip { font-size: 12px; color: #999; margin-top: 4px; margin-bottom: 0; }
-.form-tip.warning { color: #f39c12; }
+.subtitle-bar {
+  font-size: 12px;
+  color: #666;
+  padding-left: 5px;
+  flex-shrink: 0;
+  margin: 0;
+}
 
-/* 输入控件缩放 */
-.input-with-unit { position: relative; width: 100%; }
-.input-with-unit input, .full-width { width: 100%; padding: 6px 10px; border: 1px solid #d9d9d9; border-radius: 4px; box-sizing: border-box; font-size: 13px; }
-.unit-tag { position: absolute; right: 10px; top: 7px; color: #999; font-size: 13px;}
+.bottom-container {
+  display: flex;
+  gap: 15px;
+  flex: 1;
+  min-height: 0;
+}
+.panel-card {
+  background: #fff;
+  border: 1px solid #dcdfe6;
+  border-radius: 6px;
+  padding: 15px 20px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 2px 12px 0 rgba(0,0,0,0.05);
+  overflow: hidden;
+}
+.half-width {
+  flex: 1;
+  width: 50%;
+}
+.panel-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 5px;
+  flex-shrink: 0;
+}
+.panel-title {
+  font-size: 15px;
+  font-weight: bold;
+  color: #1c3d90;
+  border-left: 4px solid #1c3d90;
+  padding-left: 8px;
+  margin-right: 15px;
+  line-height: 1;
+}
+.panel-subtitle {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 15px;
+  flex-shrink: 0;
+}
 
-.dynamic-row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
-.dynamic-config-box { background: #f9f9f9; padding: 8px 10px; border-radius: 4px; display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 8px; border: 1px dashed #ddd; flex-wrap: wrap; }
-.mini-input { width: 45px; padding: 3px; text-align: center; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 12px;}
-.short-input { width: 90px; padding: 3px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 12px;}
+.level-select {
+  background: #fff;
+  border: 1px solid #dcdfe6;
+  color: #1c3d90;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
+  outline: none;
+  cursor: pointer;
+  transition: border 0.3s;
+}
+.level-select:focus {
+  border-color: #1c3d90;
+}
 
-/* 滑块样式 */
-.slider-container { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
-.slider-container input { flex: 1; accent-color: #1c3d90; }
-.slider-label { font-size: 12px; color: #666; white-space: nowrap; }
+.process-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
 
-/* 开关样式缩放 */
-.switch-control input { display: none; }
-.switch-control label { width: 36px; height: 18px; background: #ccc; display: block; border-radius: 9px; position: relative; cursor: pointer; }
-.switch-control label::after { content: ''; width: 14px; height: 14px; background: #fff; border-radius: 50%; position: absolute; top: 2px; left: 2px; transition: 0.3s; }
-.switch-control input:checked + label { background: #1c3d90; }
-.switch-control input:checked + label::after { left: 20px; }
+/* ================== 新增：闭环处置表头样式 ================== */
+.process-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 6px;
+  border-bottom: 2px solid #ebeef5; /* 表头边框稍微加粗以便区分 */
+  margin-bottom: 2px;
+}
+.step-name-hd { width: 30%; color: #999; font-size: 12px; font-weight: normal; }
+.step-time-hd { width: 40%; color: #999; font-size: 12px; font-weight: normal; text-align: center; }
+.step-status-hd { width: 30%; color: #999; font-size: 12px; font-weight: normal; text-align: right; }
+/* ========================================================= */
 
-/* 按钮组停靠在卡片最底部 */
-.form-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 10px; margin-top: auto; padding-top: 5px; }
-.btn-primary { background: #1c3d90; color: #fff; border: none; padding: 6px 20px; border-radius: 4px; cursor: pointer; font-size: 13px;}
-.btn-outline { background: #fff; color: #1c3d90; border: 1px solid #1c3d90; padding: 6px 20px; border-radius: 4px; cursor: pointer; font-size: 13px;}
-.btn-secondary { background: #eee; color: #666; border: none; padding: 6px 20px; border-radius: 4px; cursor: pointer; font-size: 13px;}
+.process-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px dashed #ebeef5;
+  padding-bottom: 8px;
+}
+.step-name { width: 30%; color: #666; font-size: 13px; font-weight: bold; }
+.step-time { width: 40%; color: #333; font-size: 13px; text-align: center; font-weight: bold; }
+.step-status {
+  width: 30%;
+  text-align: right;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  display: inline-block;
+  border: 1px solid transparent;
+  font-weight: bold;
+}
+.success { color: #52c41a; background: #f6ffed; border-color: #b7eb8f; }
+.warning { color: #fa8c16; background: #fff7e6; border-color: #ffd591; }
+.danger  { color: #f5222d; background: #fff1f0; border-color: #ffa39e; }
+.info    { color: #1890ff; background: #e6f7ff; border-color: #91d5ff; }
+
+.progress-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 15px;
+  flex: 1;
+}
+.progress-item {
+  display: flex;
+  align-items: center;
+}
+.region-name {
+  width: 60px;
+  font-size: 13px;
+  color: #666;
+  font-weight: bold;
+}
+.progress-bar-bg {
+  flex: 1;
+  height: 8px;
+  background: #ebeef5;
+  border-radius: 4px;
+  margin: 0 15px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #85C6F1 0%, #1c3d90 100%);
+  border-radius: 4px;
+  transition: width 0.8s ease-in-out;
+}
+.region-rate {
+  width: 40px;
+  text-align: right;
+  font-size: 13px;
+  color: #333;
+  font-weight: bold;
+}
+
+.conclusion-box {
+  background: #f8fbfd;
+  border: 1px dashed #85C6F1;
+  border-radius: 6px;
+  padding: 12px 15px;
+  flex-shrink: 0;
+}
+.conclusion-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: bold;
+  color: #1c3d90;
+}
+.conclusion-header .tag {
+  background: #fff7e6;
+  color: #fa8c16;
+  border: 1px solid #ffd591;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+}
+.conclusion-text {
+  font-size: 12px;
+  color: #666;
+  line-height: 1.5;
+}
 </style>
+```

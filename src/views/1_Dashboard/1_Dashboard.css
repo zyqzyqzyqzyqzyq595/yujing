@@ -1,0 +1,754 @@
+/* 1_Dashboard.css */
+/* 修改 1_Dashboard.css 的前两个类 */
+.dashboard-content-wrapper {
+  flex: 1;
+  height: 100%; /* ⬅️ 新增：继承父级的100%高度 */
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  position: relative;
+  overflow: hidden !important; /* ⬅️ 修改：防止图表渲染瞬间撑破布局 */
+}
+
+.main-layout {
+  flex: 1;
+  height: 100%; /* ⬅️ 新增：确保地图和面板撑满屏幕 */
+  display: flex;
+  gap: 12px;
+  min-height: 0;
+  position: relative;
+  overflow: visible; /* 与 COMBINE/index 一致，避免地图下拉被裁剪 */
+}
+.dash-panels {
+  width: 450px;
+  min-width: 450px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+}
+
+/* 修改原有的 .dash-row，将高度从 230px 缩小，实现上方缩短 */
+/* 找到并修改 .dash-row 的高度 */
+.dash-row {
+  display: flex;
+  gap: 12px;
+  height: 250px; /* ⬅️ 从之前的 190px 增加到 250px，给环形图充足的显示空间 */
+  flex-shrink: 0;
+}
+
+/* ⬇️ 新增：以下为新增的预警设置按钮及布局样式 */
+
+/* 按钮容器：占满宽度，内容靠右对齐 */
+.settings-bar {
+  display: flex;
+  justify-content: flex-end; /* 使按钮靠右，与右侧边框对齐 */
+  width: 100%;
+  /* flex 容器内默认顶部对齐，因此会自动与左侧地图的上边框平齐 */
+}
+
+/* 按钮精细化样式 */
+.settings-btn {
+  background: #1c3d90; /* 使用项目主色调深蓝色 */
+  color: #fff;
+  border: none;
+  padding: 0 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: bold;
+  height: 30px; /* 设定固定高度 */
+  line-height: 30px;
+  box-shadow: 0 2px 6px rgba(28, 61, 144, 0.2);
+  transition: background-color 0.2s ease;
+}
+
+.settings-btn:hover {
+  background: #132e73; /* 鼠标悬停变深 */
+}
+/* ⬆️ 新增结束 */
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(225, 233, 241, 0.8);
+  border-radius: 8px;
+  box-shadow: 0 4px 15px rgba(28, 61, 144, 0.05);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+.table-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.mini-pager {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: #000;
+}
+
+.pager-btn {
+  cursor: pointer;
+  padding: 1px 6px;
+  border: 1px solid #000;
+  border-radius: 3px;
+  transition: 0.2s;
+  background: transparent;
+  color: #000;
+}
+
+.pager-btn:hover:not(.disabled) {
+  background: #000;
+  color: #fff;
+}
+
+.pager-btn.disabled {
+  opacity: 0.2;
+  cursor: not-allowed;
+}
+
+.row-red-active {
+  background-color: #fff1f0 !important;
+}
+
+.row-red-active td {
+  color: #f5222d !important;
+  font-weight: bold;
+}
+
+.table-wrapper {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 10px 10px 10px;
+}
+
+.dash-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: #1c3d90;
+  padding: 10px 15px;
+  border-left: 4px solid #1c3d90;
+  margin: 10px 0 0 10px;
+}
+
+.dash-chart {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+}
+
+.dash-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.dash-table th, .dash-table td {
+  padding: 8px 5px;
+  text-align: center;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.dash-table th {
+  background: #f8fbff;
+  color: #555;
+  font-weight: bold;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.modal-overlay {
+  z-index: 10001 !important;
+}
+/* =========================================================
+   裂缝/雷达弹窗层级冲突修复：强制下拉菜单悬浮 + 保护图表高度
+   ========================================================= */
+
+/* 1. 强制下拉菜单容器悬浮，绝对不许占据图表位子 */
+[id*="metric-items-container"],
+[id*="device-items-container"] {
+    display: none; /* 默认由 JS 控制显示/隐藏 */
+    position: absolute !important; /* ⬅️ 核心修复：脱离布局流 */
+    z-index: 99999 !important;     /* ⬅️ 核心修复：置于所有图层最上方 */
+    top: 35px !important;          /* 调整到选择按钮下方 */
+    right: 10px !important;        /* 靠右对齐 */
+    background: #ffffff !important;
+    border: 1px solid #1c3d90 !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3) !important;
+    width: 220px !important;
+    max-height: 400px !important;
+    overflow-y: auto !important;
+    padding: 5px 0 !important;
+}
+
+/* 2. 保护图表外层盒子，允许内部元素溢出显示（让悬浮窗能露出来） */
+[class*="chart-box"] {
+    position: relative !important;
+    overflow: visible !important; /* ⬅️ 允许内部的下拉菜单溢出盒子边界显示 */
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+/* 3. 强制锁定 ECharts 渲染区域的高度，杜绝塌陷 */
+[id*="chart-main"] {
+    height: 300px !important;      /* ⬅️ 给曲线图留出足够的物理高度 */
+    min-height: 300px !important;
+    width: 100% !important;
+    flex: none !important;         /* 禁止它被自动压缩 */
+}
+
+/* 4. 修复顶部指标选择按钮的布局冲突 */
+[id*="metric-select-btn"] {
+    z-index: 100;
+    position: relative;
+    background: #fff !important;
+}
+/* 1_Dashboard.css 追加 */
+
+.threshold-layout {
+  display: flex;
+  height: 500px; /* 设定固定高度 */
+  background: #fff;
+}
+
+.threshold-tabs {
+  width: 140px;
+  background: linear-gradient(180deg, #f8fbff, #f4f8ff);
+  padding: 15px 10px;
+  border-right: 1px solid rgba(28, 61, 144, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 阈值配置卡片网格 - 调整为一行四个 */
+.config-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.threshold-card {
+  border: 1px solid rgba(28, 61, 144, 0.1);
+  border-radius: 12px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  height: 140px;
+}
+
+.card-title {
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: bold;
+  background: rgba(248, 251, 255, 0.8);
+  border-bottom: 1px solid rgba(28, 61, 144, 0.05);
+}
+
+.breathing-num {
+  width: 60px;
+  padding: 4px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.thick-divider-y {
+  height: 20px;
+  width: 2px;
+  background: #eef2f6;
+  margin: 0 15px;
+}
+
+/* =========================================================
+   1_Dashboard.css - 预警设置弹窗专用样式（基于原组件样式提取）
+   注意：以下所有样式通过 .threshold-modal-root 限定作用域，避免污染全局
+   ========================================================= */
+
+.threshold-modal-root {
+  /* 弹窗容器基础定位 */
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  visibility: hidden; /* 默认隐藏，通过 active 类控制显示 */
+}
+
+.threshold-modal-root.active {
+  visibility: visible;
+}
+
+/* 蒙层 */
+.threshold-modal-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+}
+
+/* 弹窗主体 - 宽高和原阈值设置区域比例适配 */
+.threshold-modal-container {
+  position: relative;
+  width: 1320px;
+  max-width: 90vw;
+  height: auto;               /* 改为自适应高度 */
+  min-height: 500px;          /* 保证最小高度，避免过小 */
+  max-height: 85vh;           /* 限制最大高度，超出滚动 */
+  background: #fff;
+  border-radius: 24px;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modalFadeIn 0.25s ease-out;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 弹窗头部 */
+.threshold-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  background: linear-gradient(135deg, #f8fbff, #ffffff);
+  border-bottom: 2px solid rgba(28, 61, 144, 0.1);
+}
+
+.threshold-modal-header .title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.threshold-modal-header .blue-brand-bar {
+  width: 4px;
+  height: 24px;
+  background: #1c64f2;
+  border-radius: 4px;
+}
+
+.threshold-modal-header .main-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: #1c3d90;
+  letter-spacing: 0.5px;
+}
+
+.threshold-modal-header .modal-close-new {
+  font-size: 32px;
+  font-weight: 300;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.threshold-modal-header .modal-close-new:hover {
+  color: #ef4444;
+  transform: rotate(90deg);
+}
+
+/* ========= 以下为原阈值设置核心样式，增加 .threshold-modal-body 限定 ========= */
+.threshold-modal-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  background: #fff;
+}
+
+/* 左侧标签栏 */
+.threshold-modal-body .threshold-tabs {
+  width: 150px;
+  background: linear-gradient(180deg, #f8fbff, #f4f8ff);
+  padding: 20px 14px;
+  border-right: 2px solid rgba(28, 61, 144, 0.06);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;  /* 从 center 改为 flex-start，靠上排列 */
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.threshold-modal-body .tab-btn {
+  padding: 12px 16px;
+  background: transparent;
+  color: #606266;
+  cursor: pointer;
+  font-size: 14px;
+  border-radius: 12px;
+  text-align: center;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.threshold-modal-body .tab-btn:hover {
+  background: #eaf2ff;
+  color: #1c64f2;
+  transform: translateX(2px);
+}
+
+.threshold-modal-body .tab-btn.active {
+  background: #1c64f2;
+  color: #fff;
+  font-weight: bold;
+  box-shadow: 0 8px 16px rgba(28, 100, 242, 0.24);
+  transform: translateX(4px);
+}
+
+/* 右侧内容区 */
+.threshold-modal-body .tab-content-container {
+  flex: 1;
+  background: transparent;
+  padding: 16px 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 配置头 */
+.threshold-modal-body .config-header {
+  border-bottom: 2px dashed rgba(28, 61, 144, 0.1);
+  padding-bottom: 14px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.threshold-modal-body .flex-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.threshold-modal-body .flex-align-center {
+  display: flex;
+  align-items: center;
+}
+
+.threshold-modal-body .gap-20 { gap: 20px; }
+.threshold-modal-body .gap-12 { gap: 12px; }
+.threshold-modal-body .gap-10 { gap: 10px; }
+.threshold-modal-body .gap-8 { gap: 8px; }
+
+.threshold-modal-body .thick-divider-y {
+  height: 24px;
+  width: 2px;
+  background: rgba(28, 61, 144, 0.12);
+}
+
+.threshold-modal-body .radio-label {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #333;
+}
+
+.threshold-modal-body .breathing-radio {
+  accent-color: #1c64f2;
+  transform: scale(1.1);
+}
+
+.threshold-modal-body .form-label {
+  font-size: 14px;
+  font-weight: bold;
+  color: #1c3d90;
+  transition: color 0.3s;
+}
+
+.threshold-modal-body .text-muted {
+  color: #999 !important;
+}
+
+.threshold-modal-body .breathing-select {
+  background: #fff;
+  border: 1px solid rgba(28, 61, 144, 0.16);
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.threshold-modal-body .breathing-select:focus,
+.threshold-modal-body .breathing-select:hover {
+  border-color: #1c64f2;
+  box-shadow: 0 0 0 3px rgba(28, 100, 242, 0.1);
+}
+
+.threshold-modal-body .is-disabled {
+  background: #f5f7fa !important;
+  cursor: not-allowed !important;
+  opacity: 0.8;
+}
+
+.threshold-modal-body .input-with-unit {
+  display: flex;
+  align-items: center;
+}
+
+.threshold-modal-body .breathing-input-left {
+  width: 60px;
+  padding: 6px;
+  border: 1px solid rgba(28, 61, 144, 0.16);
+  border-radius: 8px 0 0 8px;
+  text-align: center;
+  outline: none;
+  font-size: 13px;
+  background: #fff;
+}
+
+.threshold-modal-body .unit-addon {
+  background: #f8fbff;
+  border: 1px solid rgba(28, 61, 144, 0.16);
+  border-left: none;
+  padding: 6px 10px;
+  border-radius: 0 8px 8px 0;
+  font-size: 13px;
+  color: #7890b1;
+}
+
+/* 卡片网格 */
+.threshold-modal-body .config-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin: 12px 0 10px 0;
+}
+
+.threshold-modal-body .threshold-card {
+  border: 1px solid rgba(28, 61, 144, 0.06);
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+  height: 165px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.02);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.threshold-modal-body .threshold-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(28, 61, 144, 0.08);
+}
+
+.threshold-modal-body .card-title {
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: bold;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(248, 251, 255, 0.5);
+  border-bottom: 2px solid rgba(28, 61, 144, 0.04);
+}
+
+.threshold-modal-body .card-title div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.threshold-modal-body .color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.threshold-modal-body .sub-cond {
+  font-size: 11px;
+  color: #999;
+  font-weight: normal;
+}
+
+.threshold-modal-body .card-body {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  justify-content: center;
+  gap: 10px;
+}
+
+.threshold-modal-body .input-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #555;
+}
+
+.threshold-modal-body .breathing-check {
+  accent-color: #1c64f2;
+  cursor: pointer;
+  transform: scale(1.1);
+  margin-right: 2px;
+}
+
+.threshold-modal-body .input-row label {
+  width: 55px;
+}
+
+.threshold-modal-body .input-row .w-70 {
+  width: 70px;
+}
+.threshold-modal-body .input-row .w-80 {
+  width: 80px;
+}
+.threshold-modal-body .input-row .w-110 {
+  width: 110px;
+}
+
+.threshold-modal-body .breathing-num {
+  flex: 1;
+  padding: 5px;
+  border: 1px solid rgba(28, 61, 144, 0.12);
+  border-radius: 6px;
+  text-align: center;
+  color: #333;
+  outline: none;
+  background: #fcfcfd;
+}
+
+.threshold-modal-body .breathing-num:focus {
+  border-color: #1c64f2;
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(28, 100, 242, 0.1);
+}
+
+.threshold-modal-body .input-row .unit {
+  width: 35px;
+  text-align: right;
+  color: #999;
+}
+
+/* 颜色 */
+.threshold-modal-body .text-red { color: #e53935; }
+.threshold-modal-body .text-orange { color: #f57c00; }
+.threshold-modal-body .text-yellow { color: #fbc02d; }
+.threshold-modal-body .text-blue { color: #1e88e5; }
+.threshold-modal-body .bg-red { background: #e53935; }
+.threshold-modal-body .bg-orange { background: #f57c00; }
+.threshold-modal-body .bg-yellow { background: #fbc02d; }
+.threshold-modal-body .bg-blue { background: #1e88e5; }
+.threshold-modal-body .border-red { border-color: rgba(229, 57, 53, 0.15); }
+.threshold-modal-body .border-orange { border-color: rgba(245, 124, 0, 0.15); }
+.threshold-modal-body .border-yellow { border-color: rgba(251, 192, 45, 0.2); }
+.threshold-modal-body .border-blue { border-color: rgba(30, 136, 229, 0.15); }
+
+/* 提示区 */
+.threshold-modal-body .info-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(28, 61, 144, 0.08);
+}
+
+.threshold-modal-body .info-icon {
+  background: #eef6ff;
+  color: #1c64f2;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 12px;
+  border: 1px solid #c3e4fd;
+}
+
+.threshold-modal-body .info-text {
+  font-size: 11.5px;
+  color: #666;
+  letter-spacing: -0.2px;
+}
+
+.threshold-modal-body .info-text b {
+  color: #1c64f2;
+}
+
+.threshold-modal-body .is-faded {
+  opacity: 0.45;
+  pointer-events: none;
+  filter: grayscale(1);
+}
+
+/* 右侧操作按钮 */
+.threshold-modal-body .primary-btn {
+  border: none;
+  color: #fff;
+  background: linear-gradient(135deg, #1c64f2, #163c8f);
+  box-shadow: 0 6px 16px rgba(28, 100, 242, 0.2);
+  border-radius: 999px;
+  padding: 6px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.threshold-modal-body .primary-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(28, 100, 242, 0.3);
+}
+
+.threshold-modal-body .primary-btn:disabled {
+  background: #a8b4d0;
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* 滚动条美化 */
+.threshold-modal-body ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.threshold-modal-body ::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(92, 128, 190, 0.25);
+}
+
+.threshold-modal-body ::-webkit-scrollbar-track {
+  background: transparent;
+}

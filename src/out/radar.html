@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>边坡监测预警系统 - 智慧矿山管控平台</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <link rel="stylesheet" href="radar.css">
+    <script src="radar.js"></script>
+</head>
+
+<body>
+
+<!-- 分析弹窗 -->
+<div id="analysis-modal" class="modal-overlay">
+    <div class="analysis-modal" style="position: relative;">
+        <span class="modal-close" onclick="analysisModule.close()">&times;</span>
+
+        <div class="analysis-header">
+            <div style="display:flex; align-items:center;">
+                <span style="font-size: 18px; font-weight: bold; letter-spacing: 1px;">雷达监测 数据分析</span>
+            </div>
+        </div>
+
+        <div class="filter-bar">
+            <div class="filter-left-group">
+                <span class="filter-label-prefix">筛选对象:</span>
+
+                <!-- 区域下拉 -->
+                <div class="dropdown-wrapper">
+                    <button class="map-btn dropdown-trigger" id="an-region-btn"
+                            onclick="analysisModule.toggleFilterDropdown('an-region-dropdown', event)">
+                        <span id="an-region-label">选择区域</span> ▼
+                    </button>
+                    <div id="an-region-dropdown" class="custom-dropdown-content"></div>
+                </div>
+
+                <!-- 雷达下拉 (包含 面和点 的级联选择) -->
+                <div class="dropdown-wrapper">
+                    <button class="map-btn dropdown-trigger" id="an-radar-btn" style="min-width: 160px;"
+                            onclick="analysisModule.toggleFilterDropdown('an-radar-dropdown', event)">
+                        <span id="an-radar-label">选择设备(级联)</span> ▼
+                    </button>
+                    <div id="an-radar-dropdown" class="custom-dropdown-content" style="width: 200px;"></div>
+                </div>
+                <div class="dropdown-wrapper" id="an-virt-wrapper" style="margin-left: 0;">
+                    <button class="map-btn dropdown-trigger" id="an-virt-btn" style="min-width: 150px;"
+                            onclick="analysisModule.toggleFilterDropdown('an-virt-dropdown', event)">
+                        <span id="an-virt-label">选择/搜索虚拟位置</span> ▼
+                    </button>
+                    <div id="an-virt-dropdown" class="custom-dropdown-content" style="width: 240px;">
+                        <div style="padding: 8px; border-bottom: 1px solid #eee; background: #f8fbff;">
+                            <input type="text" placeholder="搜索区域或监测线..."
+                                   style="width: 100%; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;"
+                                   oninput="analysisModule.filterVirtOptions(this.value)">
+                        </div>
+                        <div id="an-virt-list-container" style="max-height: 300px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+                <div class="dropdown-wrapper" id="an-point-wrapper" style="margin-left: 10px;">
+                    <button class="map-btn dropdown-trigger" id="an-point-btn" style="min-width: 140px;"
+                            onclick="analysisModule.toggleFilterDropdown('an-point-dropdown', event)">
+                        <span id="an-point-label">选择/搜索点位</span> ▼
+                    </button>
+                    <div id="an-point-dropdown" class="custom-dropdown-content" style="width: 220px;">
+                        <div style="padding: 8px; border-bottom: 1px solid #eee; background: #f8fbff;">
+                            <input type="text" id="point-search-input" placeholder="输入点名搜索..."
+                                   style="width: 100%; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;"
+                                   oninput="analysisModule.filterPointOptions(this.value)">
+                        </div>
+                        <div id="an-point-list-container" style="max-height: 250px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+
+                <div class="divider-vertical"></div>
+
+                <div class="filter-time-group">
+                    <span>时间:</span>
+                    <input type="datetime-local" id="an-start" class="map-btn time-input" onchange="analysisModule.query()">
+                    <span style="margin:0 5px">至</span>
+                    <input type="datetime-local" id="an-end" class="map-btn time-input" onchange="analysisModule.query()">
+                </div>
+            </div>
+
+            <div class="filter-right-group">
+                <button class="map-btn btn-search" onclick="analysisModule.query()">🔍 查询</button>
+                <button class="map-btn btn-clear" onclick="analysisModule.clearAll()">🗑 重置</button>
+            </div>
+        </div>
+
+        <div class="analysis-body">
+            <div class="chart-row">
+                <div class="chart-box">
+                    <div class="chart-header">
+                        <span class="chart-title">📉 指标时序演变曲线</span>
+                        <div class="chart-ctrls">
+                            <div class="dropdown-wrapper">
+                                <button class="pager-btn metric-select" id="metric-select-btn"
+                                        onclick="analysisModule.toggleFilterDropdown('metric-items-container', event)">
+                                    <span id="metric-btn-label" class="placeholder-text">请选择指标...</span> ▼
+                                </button>
+                                <div id="metric-items-container" class="custom-dropdown-content" style="width:200px;"></div>
+                            </div>
+                            <button class="pager-btn" onclick="analysisModule.exportChart('curve')">💾 导出</button>
+                        </div>
+                    </div>
+                    <div id="curve-chart-main" style="flex:1;"></div>
+                </div>
+
+                <div class="chart-box">
+                    <div class="chart-header">
+                        <span class="chart-title">📍 XY 平面位移矢量轨迹图</span>
+                        <div class="chart-ctrls">
+                            <div class="dropdown-wrapper">
+                                <button class="pager-btn" id="traj-freq-btn"
+                                        onclick="analysisModule.toggleFilterDropdown('traj-freq-dropdown', event)">
+                                    <span id="traj-freq-label">按天显示</span> ▼
+                                </button>
+                                <div id="traj-freq-dropdown" class="custom-dropdown-content" style="width:120px;"></div>
+                            </div>
+                            <button class="pager-btn" onclick="analysisModule.exportChart('vector')">💾 导出</button>
+                        </div>
+                    </div>
+                    <div id="vector-chart-main" style="flex:1;"></div>
+                    <div class="compass-icon">
+                        <div style="color:#1c3d90; font-weight:bold; fontSize:18px; margin-top:-3px;">↑</div>
+                        <div style="font-size:10px; color:#666; margin-top:-4px;">北(N)</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-section">
+                <div class="table-header-row">
+                    <div class="dash-title" style="margin:0;">雷达监测 历史明细报表</div>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <span style="font-size:13px; color:#666;">显示频率:</span>
+                        <div class="dropdown-wrapper">
+                            <button class="map-btn" id="an-table-freq-btn"
+                                    onclick="analysisModule.toggleFilterDropdown('an-table-freq-dropdown', event)">
+                                <span id="an-table-freq-label">按小时</span> ▼
+                            </button>
+                            <div id="an-table-freq-dropdown" class="custom-dropdown-content" style="width:120px;"></div>
+                        </div>
+                        <button class="map-btn btn-export-excel" onclick="analysisModule.openExportDialog()">📥 导出报表</button>
+                    </div>
+                </div>
+                <div class="scroll-table-wrapper">
+                    <table class="full-table">
+                        <thead id="full-table-head"></thead>
+                        <tbody id="full-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 导出选项面板 -->
+<div id="export-panel" class="modal-overlay">
+    <div class="modal-content" style="width: 500px; background:#fff; border-radius:8px; overflow:hidden;">
+        <div class="modal-header" style="background:#f8fbff; padding:15px 20px; border-bottom:1px solid #eee;">
+            <h4 style="margin:0; color:#1c3d90; display:flex; align-items:center; gap:8px;">
+                <span>📋</span> 导出字段配置
+            </h4>
+            <div style="display:flex; gap:10px;">
+                <button class="pager-btn" onclick="analysisModule.toggleAllExport(true)">全选</button>
+                <button class="pager-btn" onclick="analysisModule.toggleAllExport(false)">清空</button>
+            </div>
+        </div>
+        <div class="export-grid" id="export-metric-list" style="padding:20px; display:grid; grid-template-columns: 1fr 1fr; gap:10px;"></div>
+        <div class="export-footer" style="padding:15px 20px; background:#fafafa; border-top:1px solid #eee; display:flex; justify-content:flex-end; gap:10px;">
+            <button class="map-btn" style="background:#fff; border:1px solid #dcdfe6;" onclick="document.getElementById('export-panel').style.display='none'">取消</button>
+            <button class="map-btn" style="background:#1c3d90; color:#fff;" onclick="analysisModule.doExport()">确认导出</button>
+        </div>
+    </div>
+</div>
+
+<canvas id="bg-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none;"></canvas>
+
+<header class="header-comp">
+    <div class="header-logo">
+        <svg width="30" height="30" viewBox="0 0 100 100">
+            <rect width="100" height="100" rx="20" fill="#1c3d90" />
+            <path d="M30 70 L50 30 L70 70" fill="none" stroke="white" stroke-width="8" />
+        </svg>
+        国家电投 SPIC | 产运销一体化
+    </div>
+    <div class="header-right">
+        <div id="header-clock" class="header-clock">加载时间中...</div>
+        <div class="header-user"><span>🔔</span><span>陈晓晓测试 ▼</span></div>
+    </div>
+</header>
+
+<div class="main-container">
+    <aside class="sidebar-comp">
+        <div class="nav-group">
+            <div class="side-nav-header">智慧矿山监测子系统</div>
+                <div class="side-nav-item " onclick="window.location.href='index.html'">GNSS监测</div>
+                <div class="side-nav-item " onclick="window.location.href='deep.html'">深部位移监测</div>
+                <div class="side-nav-item active" onclick="window.location.href='radar.html'">雷达监测</div>
+                <div class="side-nav-item " onclick="window.location.href='dizhixieshi.html'">裂缝写实</div>
+                <div class="side-nav-item " onclick="window.location.href='crack.html'">裂缝监测</div>
+                <div class="side-nav-item " onclick="window.location.href='fire.html'">煤自燃监测</div>
+                <div class="side-nav-item " onclick="window.location.href='water.html'">降雨监测</div>
+                <div class="side-nav-item " onclick="window.location.href='ground.html'">地下水监测</div>
+                <div class="side-nav-item " onclick="window.location.href='yingli.html'">地下应力监测</div>
+                <div class="side-nav-item " onclick="window.location.href='vib.html'">爆破震动监测</div>
+                <div class="side-nav-item " onclick="window.location.href='sat.html'">遥感卫星监测</div>
+                <div class="side-nav-item " onclick="window.location.href='rengongluru.html'">人工录入</div>
+                <div class="side-nav-item " onclick="window.location.href='data.html'">基础数据管理</div>
+        </div>
+    </aside>
+
+    <main class="content">
+        <div class="main-layout">
+            <section class="map-module" id="main-map-section">
+                <button id="reset-gnss-btn" style="position: absolute; top: 55px; left: 15px; z-index: 100;
+   background: rgba(0, 0, 0, 0.4); color: #fff; border: 1px solid rgba(255,255,255,0.3);
+   width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: none;
+   align-items: center; justify-content: center; backdrop-filter: blur(10px);
+   box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: 0.3s;" onclick="appLogic.resetGnssFilter()" title="返回全部监测点">
+                    <span style="font-size: 16px; font-weight: bold;">✕</span>
+                </button>
+
+                <div style="position: absolute; top: 55px; right: 15px; z-index: 100; display: inline-block;">
+                    <button id="map-view-btn" class="map-btn" style="width: 110px; height: 32px; font-size: 13px; background: var(--primary-blue); color: white; border: 1px solid #1c3d90; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.15); cursor: pointer; outline: none; padding: 0 10px;" onclick="mapModule.toggleViewDropdown(event)">
+                        <span id="map-view-label">地质模型</span> ▼
+                    </button>
+                    <div id="map-view-dropdown" class="custom-dropdown-content" style="right: 0; left: auto; width: 130px;">
+                    </div>
+                </div>
+
+                <div class="draw-toolbar" id="draw-toolbar">
+                    <span class="draw-tip">【逻辑互斥】左键点选监测点连线 或 Ctrl+左键拖拽划线（两者不可混用）</span>
+                    <button class="map-btn" style="background:var(--warn-green);color:#fff;" onclick="profileModule.confirmDraw()">确定生成</button>
+                    <button class="map-btn" onclick="profileModule.exitMode()">取消</button>
+                </div>
+
+                <!-- 地图工具栏：更新为级联模式，删除了独立的 Surface/Point 按钮 -->
+                <div class="map-toolbar" id="time-engine-bar">
+                    <div style="display:flex; align-items:center; gap:8px; flex: 1; flex-wrap: nowrap;">
+
+                        <!-- 区域选择 -->
+                        <div class="dropdown-wrapper">
+                            <button class="map-btn" id="map-region-btn" onclick="mapFilterModule.toggleDropdown('map-region-dropdown', event)">
+                                <span id="map-region-label">选择区域</span> ▼
+                            </button>
+                            <div id="map-region-dropdown" class="custom-dropdown-content"></div>
+                        </div>
+
+                        <!-- 雷达选择 (现在包含级联菜单) -->
+                        <div class="dropdown-wrapper">
+                            <button class="map-btn" id="radar-select-btn" onclick="mapFilterModule.toggleDropdown('radar-dropdown', event)" style="min-width: 140px;">
+                                <span id="radar-select-label">选择设备</span> ▼
+                            </button>
+                            <!-- 加宽下拉框以容纳子菜单 -->
+                            <div id="radar-dropdown" class="custom-dropdown-content" style="width: 200px;"></div>
+                        </div>
+                        <div class="dropdown-wrapper">
+                            <button class="map-btn" id="virt-select-btn" onclick="mapFilterModule.toggleDropdown('virt-dropdown', event)" style="min-width: 150px;">
+                                <span id="virt-select-label">选择/搜索虚拟位置</span> ▼
+                            </button>
+                            <div id="virt-dropdown" class="custom-dropdown-content" style="width: 240px;">
+                                <div style="padding: 8px; border-bottom: 1px solid #eee; background: #f8fbff;">
+                                    <input type="text" placeholder="搜索区域或监测线..."
+                                           style="width: 100%; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;"
+                                           oninput="mapFilterModule.filterVirtOptions(this.value)">
+                                </div>
+                                <div id="virt-list-container" style="max-height: 300px; overflow-y: auto;"></div>
+                            </div>
+                        </div>
+
+                        <!-- 已删除 surface-select-btn 和 point-select-btn -->
+
+                        <div class="divider-vertical" style="height:24px;"></div>
+
+                        <button class="map-btn freq-btn active" onclick="mapModule.setTime(1, this)">一天内</button>
+                        <button class="map-btn freq-btn" onclick="mapModule.setTime(7, this)">一周内</button>
+                        <button class="map-btn freq-btn" onclick="mapModule.setTime(30, this)">一个月内</button>
+
+                        <span style="font-size:12px; color:#666; margin-left:5px;">时间:</span>
+                        <input type="datetime-local" id="date-start" class="map-btn time-input-map" value="2025-10-10T13:22" onchange="mapModule.applyCustomTime()">
+                        <span style="font-size:12px; color:#666;">至</span>
+                        <input type="datetime-local" id="date-end" class="map-btn time-input-map" value="2026-01-18T00:00" onchange="mapModule.applyCustomTime()">
+                    </div>
+
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <button class="btn-profile" id="btn-enter-profile" onclick="profileModule.enterMode()">剖面图绘制</button>
+                    </div>
+                </div>
+
+                <div class="map-viewer" id="map-viewer">
+                    <div class="map-canvas" id="map-canvas">
+                        <svg id="draw-svg"></svg>
+                        <svg id="custom-draw-svg"></svg>
+                    </div>
+                </div>
+
+                <div class="profile-workbench" id="profile-workbench">
+                    <div class="profile-header">
+                        <span style="font-weight:bold; color:#1c3d90">地质剖面结构分析</span>
+                        <div style="display:flex; gap:10px">
+                            <button class="map-btn" onclick="profileModule.exportImage()">💾 导出图片</button>
+                            <button class="map-btn" style="background:var(--warn-red);color:#fff" onclick="profileModule.closeWorkbench()">返回绘制</button>
+                        </div>
+                    </div>
+                    <div class="profile-body">
+                        <div id="profile-chart"></div>
+                    </div>
+                </div>
+
+                <div id="offline-modal" class="modal-overlay">
+                    <div class="offline-panel-content">
+                        <div class="modal-header">
+                            <h3 style="color:#1c3d90; font-size: 16px; margin:0;">🚫 离线设备列表 (雷达监测)</h3>
+                            <span class="modal-close" style="color:#999 !important; position:static; font-size:24px;" onclick="dashModule.closeOfflineModal()">&times;</span>
+                        </div>
+                        <div class="modal-table-wrapper">
+                            <table class="dash-table">
+                                <thead>
+                                <tr>
+                                    <th width="60">序号</th>
+                                    <th>区域</th>
+                                    <th>设备编号</th>
+                                    <th>离线时间</th>
+                                    <th>所属厂商</th>
+                                </tr>
+                                </thead>
+                                <tbody id="offline-table-body">
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="offline-modal-footer">
+                            <div class="offline-pager-info" id="offline-pager-info">共 2 条记录</div>
+                            <div class="offline-pager-ctrl" id="offline-pager-ctrl">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="drawer-comp" id="device-drawer">
+                    <div class="drawer-bar" onclick="mapModule.toggleDrawer()">▼ 监测设备类型切换</div>
+                    <div class="drawer-icons">
+                        <div class="filter-item" onclick="mapFilterModule.toggle('GNSS', this)">📍 GNSS监测</div>
+                        <div class="filter-item" onclick="mapFilterModule.toggle('DEEP', this)">⚓ 深部位移监测</div>
+                        <div class="filter-item" onclick="mapFilterModule.toggle('RADAR', this)">
+                            <span>📡 雷达监测</span>
+                            <span class="radar-plus" onclick="mapFilterModule.toggleRadarCloud(event, this)">+</span>
+                        </div>
+                        <div class="filter-item" onclick="mapFilterModule.toggle('SURFACE', this)">📐 地质写实</div>
+                        <div class="filter-item" onclick="mapFilterModule.toggle('CRACK', this)">🧱 裂缝监测</div>
+                        <div class="filter-item" onclick="mapFilterModule.toggle('FIRE', this)">🔥 煤自燃监测</div>
+                        <div class="filter-item" onclick="mapFilterModule.toggle('WATER', this)">💧 降雨监测</div>
+                        <div class="filter-item" onclick="mapFilterModule.toggle('GROUND', this)">🌍 地下水监测</div>
+                        <div class="filter-item" onclick="mapFilterModule.toggle('STRESS', this)">📊 应力监测</div>
+                        <div class="filter-item" onclick="mapFilterModule.toggle('VIB', this)">💥 振动监测</div>
+                        <div class="filter-item" onclick="mapFilterModule.toggle('SAT', this)">🛸 遥感监测</div>
+                        <div class="filter-item all-btn" onclick="mapFilterModule.toggle('全部', this)">🔳 全部显示</div>
+                    </div>
+                </div>
+            </section>
+
+            <div id="map-tooltip" class="model-tooltip"></div>
+
+            <aside class="dash-panels">
+                <div class="dash-row">
+                    <div class="glass-panel" style="flex: 1;">
+                        <div class="dash-title">设备在线状态</div>
+                        <div id="chart-on" class="dash-chart"></div>
+                    </div>
+                    <div class="glass-panel" style="flex: 1;">
+                        <div class="dash-title">雷达监测预警等级</div>
+                        <div id="chart-al" class="dash-chart"></div>
+                    </div>
+                </div>
+
+                <div class="glass-panel table-panel">
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding: 10px 10px 5px 10px;">
+                        <div class="dash-title" style="margin-bottom:0; color:#000; border-left-color:#000;">监测预警</div>
+                        <div id="table-pagination" class="mini-pager"></div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="dash-table">
+                            <thead>
+                            <tr>
+                                <th>序号</th>
+                                <th>扫描区域</th>
+                                <th>圈定位置</th>
+                                <th>标高</th>
+                                <th>形变</th>
+                                <th>预警阈值</th>
+                            </tr>
+                            </thead>
+                            <tbody id="warning-list">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <!-- 找到原有的右下角图表容器，替换为： -->
+                <!-- 右下角图表容器 -->
+                <div class="glass-panel" style="height: 200px; flex-shrink: 0;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 5px; padding-right: 5px;">
+                        <!-- 默认文字改为 面 -->
+                        <div class="dash-title" id="bottom-chart-title" style="margin-bottom:0; font-size:12px;">圈定面累积形变</div>
+
+                        <div style="display:flex; gap:5px; align-items:center;">
+                            <button class="pager-btn" id="btn-custom-select" onclick="dashModule.toggleCustomSelect()"
+                                    style="font-size:11px; padding: 2px 6px; border-color:var(--primary-blue); color:var(--text-secondary);">
+                                ⌖ 自定义圈定
+                            </button>
+                            <div style="display:flex; gap:2px;">
+                                <button class="pager-btn" onclick="dashModule.switchBottomChart('prev')"> < </button>
+                                <button class="pager-btn" onclick="dashModule.switchBottomChart('next')"> > </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="chart-sp" class="dash-chart"></div>
+                </div>
+            </aside>
+        </div>
+    </main>
+</div>
+<div id="selection-modal" class="modal-overlay" style="z-index: 6000;">
+    <div class="selection-box">
+        <span class="close-btn" onclick="customSelectModule.clearAndClose()">×</span>
+        <div class="sel-icon">✨</div>
+        <h3>自定义圈定位置已完成</h3>
+        <p>已成功截取目标区域，监测点位数据已锁定。</p>
+        <div class="sel-footer">
+            <button class="map-btn btn-export" onclick="customSelectModule.exportData()">📊 导出区域数据</button>
+        </div>
+    </div>
+</div>
+</body>
+
+</html>

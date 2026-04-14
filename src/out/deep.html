@@ -1,0 +1,1744 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>边坡监测预警系统 - 智慧矿山管控平台</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts-gl@2.0.9/dist/echarts-gl.min.js"></script>
+    <link rel="stylesheet" href="deep.css">
+    <script src="deep.js"></script>
+</head>
+
+<body>
+    <!-- 背景画布 -->
+    <canvas id="bg-canvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none;"></canvas>
+
+    <!-- 页面头部 -->
+    <header class="header-comp">
+        <div class="header-logo">
+            <svg width="30" height="30" viewBox="0 0 100 100">
+                <rect width="100" height="100" rx="20" fill="#1c3d90" />
+                <path d="M30 70 L50 30 L70 70" fill="none" stroke="white" stroke-width="8" />
+            </svg>
+            国家电投 SPIC | 产运销一体化
+        </div>
+        <div class="header-right">
+            <div id="header-clock" class="header-clock">加载时间中..</div>
+            <div class="header-user"><span>🔔</span><span>陈晓晓测试</span></div>
+        </div>
+    </header>
+
+    <!-- 主容器 -->
+    <div class="main-container">
+        <!-- 侧边栏 -->
+        <aside class="sidebar-comp">
+            <div class="nav-group">
+                <div class="side-nav-header">智慧矿山监测子系统</div>
+                <div class="side-nav-item " onclick="window.location.href='index.html'">GNSS监测</div>
+                <div class="side-nav-item active" onclick="window.location.href='deep.html'">深部位移监测</div>
+                <div class="side-nav-item " onclick="window.location.href='radar.html'">雷达监测</div>
+                <div class="side-nav-item " onclick="window.location.href='dizhixieshi.html'">裂缝写实</div>
+                <div class="side-nav-item " onclick="window.location.href='crack.html'">裂缝监测</div>
+                <div class="side-nav-item " onclick="window.location.href='fire.html'">煤自燃监测</div>
+                <div class="side-nav-item " onclick="window.location.href='water.html'">降雨监测</div>
+                <div class="side-nav-item " onclick="window.location.href='ground.html'">地下水监测</div>
+                <div class="side-nav-item " onclick="window.location.href='yingli.html'">地下应力监测</div>
+                <div class="side-nav-item " onclick="window.location.href='vib.html'">爆破震动监测</div>
+                <div class="side-nav-item " onclick="window.location.href='sat.html'">遥感卫星监测</div>
+                <div class="side-nav-item " onclick="window.location.href='rengongluru.html'">人工录入</div>
+                <div class="side-nav-item " onclick="window.location.href='data.html'">基础数据管理</div>
+        </aside>
+
+        <!-- 主要内容 -->
+        <main class="content">
+            <div class="main-layout">
+                <!-- 地图模块 -->
+                <section class="map-module" id="main-map-section">
+                    <!-- 重置按钮 -->
+                    <button id="reset-SJ-btn" style="position: absolute; top: 55px; left: 15px; z-index: 100;
+   background: rgba(0, 0, 0, 0.4); color: #fff; border: 1px solid rgba(255,255,255,0.3);
+   width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: none;
+   align-items: center; justify-content: center; backdrop-filter: blur(10px);
+   box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: 0.3s;" onclick="appLogic.resetSJFilter()" title="返回全部监测点">
+                    <span style="font-size: 16px; font-weight: bold;">↺</span>
+                </button>
+
+                    <!-- 地图视图切换 -->
+                    <div style="position: absolute; top: 55px; right: 15px; z-index: 100; display: inline-block;">
+                        <button id="map-view-btn" class="map-btn" style="width: 110px; height: 32px; font-size: 13px; background: var(--primary-blue); color: white; border: 1px solid #1c3d90; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.15); cursor: pointer; outline: none; padding: 0 10px;" onclick="mapModule.toggleViewDropdown(event)">
+                            <span id="map-view-label">地质模型</span> ▼
+                        </button>
+                        <div id="map-view-dropdown" class="custom-dropdown-content" style="right: 0; left: auto; width: 130px;">
+                        </div>
+                    </div>
+
+                    <!-- 绘图工具栏 -->
+                    <div class="draw-toolbar" id="draw-toolbar">
+                        <span class="draw-tip">【逻辑互斥】左键点选监测点连线 / Ctrl+左键拖拽划线（两者不可混用）</span>
+                        <button class="map-btn" style="background:var(--warn-green);color:#fff;" onclick="profileModule.confirmDraw()">确定生成</button>
+                        <button class="map-btn" onclick="profileModule.exitMode()">取消</button>
+                    </div>
+
+                    <!-- 时间引擎工具栏 -->
+                    <div class="map-toolbar" id="time-engine-bar" style="padding: 8px 12px; gap: 10px;">
+                        <div style="display:flex; align-items:center; gap:8px; flex: 1; flex-wrap: nowrap;">
+                            <!-- 区域选择 -->
+                            <div style="position:relative; display: inline-block;">
+                                <button class="map-btn" id="map-region-btn" style="min-width:90px; height:32px; font-size:13px; padding: 0 10px;" onclick="mapFilterModule.toggleDropdown('map-region-dropdown', event)">
+                                    <span id="map-region-label">选择区域</span> ▼
+                                </button>
+                                <div id="map-region-dropdown" class="custom-dropdown-content"></div>
+                            </div>
+
+                            <!-- 监测点选择 -->
+                            <div style="position:relative; display: inline-block;">
+                                <input type="text" id="map-point-input" class="map-btn" style="width:160px; height:32px; font-size:13px; text-align:left; padding: 0 25px 0 10px;" placeholder="请选择监测点.." onclick="mapFilterModule.toggleDropdown('map-point-dropdown', event)" oninput="mapFilterModule.filterPointList(this.value)" onblur="mapFilterModule.handlePointInput()" onkeydown="if(event.key === 'Enter') mapFilterModule.handlePointInput()"> <span style="position:absolute; right:8px; top:10px; pointer-events:none; font-size:10px; color:#999;">▼</span>
+                                <div id="map-point-dropdown" class="custom-dropdown-content"></div>
+                            </div>
+
+                            <div style="width: 1px; height: 24px; background: #ddd; margin: 0 5px;"></div>
+
+                            <!-- 时间范围按钮 -->
+                            <button class="map-btn freq-btn active" onclick="mapModule.setTime(1, this)" style="height:32px; font-size:13px; padding: 0 12px;">一天内</button>
+                            <button class="map-btn freq-btn" onclick="mapModule.setTime(7, this)" style="height:32px; font-size:13px; padding: 0 12px;">一周内</button>
+                            <button class="map-btn freq-btn" onclick="mapModule.setTime(30, this)" style="height:32px; font-size:13px; padding: 0 12px;">一个月内</button>
+                            
+                            <!-- 自定义时间范围 -->
+                            <span style="font-size:12px; color:#666; white-space: nowrap;">时间范围:</span>
+                            <input type="datetime-local" id="date-start" class="map-btn" value="2025-10-10T13:22" onchange="mapModule.applyCustomTime()" style="height:32px; font-size:12px; padding: 0 8px; width:150px;">
+                            <span style="font-size: clamp(10px, 0.7vw, 13px); color: #666; white-space: nowrap;">→</span>
+                            <input type="datetime-local" id="date-end" class="map-btn" value="2026-01-18T00:00" onchange="mapModule.applyCustomTime()" style="height:32px; font-size:12px; padding: 0 8px; width:150px;">
+                        </div>
+                        
+                        <!-- 剖面图绘制按钮 -->
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <button class="btn-profile" id="btn-enter-profile" onclick="profileModule.enterMode()" style="height:32px; font-size:13px; padding: 0 15px;">剖面图绘制</button>
+                        </div>
+                    </div>
+
+                    <!-- 地图查看器 -->
+                    <div class="map-viewer" id="map-viewer">
+                        <div class="map-canvas" id="map-canvas">
+                            <svg id="draw-svg"></svg>
+                        </div>
+                    </div>
+
+                    <!-- 剖面工作区 -->
+                    <div class="profile-workbench" id="profile-workbench">
+                        <div class="profile-header">
+                            <span style="font-weight:bold; color:#1c3d90">地质剖面结构分析</span>
+                            <div style="display:flex; gap:10px">
+                                <button class="map-btn" onclick="profileModule.exportImage()">💾 导出图片</button>
+                                <button class="map-btn" style="background:var(--warn-red);color:#fff" onclick="profileModule.closeWorkbench()">返回绘制</button>
+                            </div>
+                        </div>
+                        <div class="profile-body">
+                            <div id="profile-chart"></div>
+                        </div>
+                    </div>
+
+                    <!-- 离线设备模态框 -->
+                    <div id="offline-modal" class="modal-overlay">
+                        <div class="offline-panel-content">
+                            <div class="modal-header">
+                                <h3 style="color:#1c3d90; font-size: 16px; margin:0;">🚫 离线设备列表 (SJ设备监测)</h3>
+                                <span class="modal-close" style="color:#999 !important; position:static; font-size:24px;" onclick="dashModule.closeOfflineModal()">&times;</span>
+                            </div>
+                            <div class="modal-table-wrapper">
+                                <table class="dash-table">
+                                    <thead>
+                                    <tr>
+                                        <th width="60">序号</th>
+                                        <th>区域</th>
+                                        <th>设备编号</th>
+                                        <th>离线时间</th>
+                                        <th>所属厂商</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody id="offline-table-body">
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="offline-modal-footer">
+                                <div class="offline-pager-info" id="offline-pager-info">共 2 条记录</div>
+                                <div class="offline-pager-ctrl" id="offline-pager-ctrl">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 设备抽屉 -->
+                    <div class="drawer-comp" id="device-drawer" style="z-index: 9999;">
+                        <div class="drawer-bar" onclick="mapFilterModule.toggleDrawer()">
+                            <span id="drawer-arrow">▲</span> 监测设备类型切换
+                        </div>
+                        <div class="drawer-icons">
+                            <div class="filter-item" onclick="mapFilterModule.toggle('GNSS', this)">📍 GNSS监测</div>
+                            <div class="filter-item" onclick="mapFilterModule.toggle('DEEP', this)">⚓ 深部位移监测</div>
+                            <div class="filter-item" onclick="mapFilterModule.toggle('RADAR', this)">
+                                <span>📡 雷达监测</span>
+                                <span class="radar-plus" onclick="mapFilterModule.toggleRadarCloud(event, this)">+</span>
+                            </div>
+                            <div class="filter-item" onclick="mapFilterModule.toggle('SURFACE', this)">📐 地质写实</div>
+                            <div class="filter-item" onclick="mapFilterModule.toggle('CRACK', this)">🧱 裂缝监测</div>
+                            <div class="filter-item" onclick="mapFilterModule.toggle('FIRE', this)">🔥 煤自燃监测</div>
+                            <div class="filter-item" onclick="mapFilterModule.toggle('WATER', this)">💧 降雨监测</div>
+                            <div class="filter-item" onclick="mapFilterModule.toggle('GROUND', this)">🌍 地下水监测</div>
+                            <div class="filter-item" onclick="mapFilterModule.toggle('STRESS', this)">📊 应力监测</div>
+                            <div class="filter-item" onclick="mapFilterModule.toggle('VIB', this)">💥 振动监测</div>
+                            <div class="filter-item" onclick="mapFilterModule.toggle('SAT', this)">🛸 遥感监测</div>
+                            <div class="filter-item all-btn" onclick="mapFilterModule.toggle('全部', this)">🔳 全部显示</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 地图工具提示 -->
+                <div id="map-tooltip" class="model-tooltip"></div>
+
+                <!-- 数据面板 -->
+                <aside class="dash-panels">
+                    <!-- 设备在线状态和预警等级图表 -->
+                    <div class="dash-row">
+                        <div class="glass-panel" style="flex: 1;">
+                            <div class="dash-title">设备在线状态</div>
+                            <div id="chart-on" class="dash-chart"></div>
+                        </div>
+                        <div class="glass-panel" style="flex: 1;">
+                            <div class="dash-title">预警等级</div>
+                            <div id="chart-al" class="dash-chart"></div>
+                        </div>
+                    </div>
+
+                    <!-- 监测预警表格 -->
+                    <div class="glass-panel table-panel">
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding: 10px 10px 5px 10px;">
+                            <div class="dash-title" style="margin-bottom:0; color:#000; border-left-color:#000;">监测预警</div>
+                            <div id="table-pagination" class="mini-pager"></div>
+                        </div>
+                        <div class="table-wrapper">
+                            <table class="dash-table">
+                                <thead>
+                                <tr>
+                                    <th>序号</th>
+                                    <th>区域</th>
+                                    <th>编号</th>
+                                    <th>预警位置</th>
+                                    <th>切线角</th>
+                                    <th>阈值</th>
+                                </tr>
+                                </thead>
+                                <tbody id="warning-list">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- 监测点累计位移数据图 -->
+                    <div class="glass-panel" style="height: 200px; flex-shrink: 0;">
+                        <div class="dash-title">监测点累计位移数据图 (24h)</div>
+                        <div id="chart-sp" class="dash-chart"></div>
+                    </div>
+                </aside>
+            </div>
+        </main>
+    </div>
+
+    <!-- 数据分析模态框 -->
+    <div id="analysis-modal" class="modal-overlay">
+        <div class="analysis-modal" style="position: relative;">
+            <span class="modal-close" onclick="analysisModule.close()">&times;</span>
+
+            <div class="analysis-header">
+                <div style="display:flex; align-items:center;">
+                    <span style="font-size: 18px; font-weight: bold; letter-spacing: 1px;">深部位移监测 数据分析</span>
+                </div>
+            </div>
+
+            <!-- 选项卡-->
+            <div class="analysis-tabs">
+                <div class="tab-item active" data-tab="datapoint">数据点</div>
+                <div class="tab-item" data-tab="posture">三维姿态</div>
+                <div class="tab-item" data-tab="trend">趋势图</div>
+                <div class="tab-item" data-tab="cluster">聚类滑面关联</div>
+                <div class="tab-item" data-tab="nodedisp">节点位移</div>
+                <div class="tab-item" data-tab="trajectory">地层运动轨迹</div>
+                <div class="tab-item" data-tab="nodetemp">节点温度</div>
+                <div class="tab-item" data-tab="tempfield">温度场</div>
+                <div class="tab-item" data-tab="angle">切线角</div>
+            </div>
+
+            <!-- 时间范围选择 -->
+            <div class="time-range-bar">
+                <div class="time-buttons">
+                    <button class="time-btn" onclick="analysisModule.handleTimeButtonClick(0.04)">小时</button>
+                    <button class="time-btn" onclick="analysisModule.handleTimeButtonClick(1)">日均</button>
+                    <button class="time-btn" onclick="analysisModule.handleTimeButtonClick(1)">今日</button>
+                    <button class="time-btn active" onclick="analysisModule.handleTimeButtonClick(7)">近7天</button>
+                    <button class="time-btn" onclick="analysisModule.handleTimeButtonClick(30)">近30天</button>
+                </div>
+                <div class="custom-time">
+                    <input type="datetime-local" id="an-start" class="map-btn" value="2026-01-14T00:00" onchange="analysisModule.query()">
+                    <span>→</span>
+                    <input type="datetime-local" id="an-end" class="map-btn" value="2026-01-20T23:59:59" onchange="analysisModule.query()">
+                    <button class="search-btn" onclick="analysisModule.handleSearchClick()">搜索</button>
+                </div>
+            </div>
+
+            <!-- 原始筛选栏保留但调整 -->
+            <div class="filter-bar">
+                <div class="filter-left-group" style="flex: 1;">
+                    <div class="filter-group">
+                        <span>区域位置:</span>
+                        <select id="an-region" class="map-btn" onchange="analysisModule.filterDevicesByRegion(this.value)">
+                            <option value="">全部区域</option>
+                            <option>北帮</option>
+                            <option>南帮</option>
+                            <option>东帮</option>
+                            <option>西帮</option>
+                            <option>中央区</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <span>监测点:</span>
+                        <div style="position:relative; display: inline-block;">
+                            <input type="text" id="an-device-input" class="map-btn" placeholder="输入编号(如11)或选择" style="width:200px;" onfocus="analysisModule.toggleDeviceMenu(true, event)" oninput="analysisModule.filterDeviceList(this.value)">
+                            <div id="device-items-container"></div>
+                        </div>
+                    </div>
+                </div>
+                <button class="map-btn" style="background:#f56c6c; color:#fff; border:none; margin-left:20px; font-weight:bold;" onclick="analysisModule.clearAll()">🗑 清除所有</button>
+            </div>
+
+            <div class="analysis-body">
+                <!-- 数据点选项卡内容 -->
+                <div class="tab-content" id="tab-datapoint">
+                    <!-- 三个图表 -->
+                    <div class="data-points-charts">
+                        <!-- 累计位移数据图 -->
+                        <div class="data-point-chart">
+                            <div class="chart-header">
+                                <div class="chart-title">
+                                    <select class="time-selector">
+                                        <option>2026-01-20 15:29:59</option>
+                                    </select>
+                                </div>
+                                <button class="export-btn clickable-btn">导出图</button>
+                            </div>
+                            <div class="chart-subtitle">SJO3 (2024.12.2清零) - 小时-累计位移数据图</div>
+                            <div id="cumulative-displacement-chart" class="chart-container"></div>
+                        </div>
+                        
+                        <!-- 相对位移数据图 -->
+                        <div class="data-point-chart">
+                            <div class="chart-header">
+                                <div class="chart-title">
+                                    <select class="time-selector">
+                                        <option>2026-01-20 15:29:59</option>
+                                    </select>
+                                </div>
+                                <button class="export-btn clickable-btn">导出图</button>
+                            </div>
+                            <div class="chart-subtitle">SJO3 (2024.12.2清零) - 小时-相对位移数据图</div>
+                            <div id="relative-displacement-chart" class="chart-container"></div>
+                        </div>
+                        
+                        <!-- 三维构型图 -->
+                        <div class="data-point-chart">
+                            <div class="chart-header">
+                                <div class="chart-title">
+                                    <select class="time-selector">
+                                        <option>2026-01-20 15:29:59</option>
+                                    </select>
+                                </div>
+                                <button class="export-btn clickable-btn">导出图</button>
+                            </div>
+                            <div class="chart-subtitle">SJO3 (2024.12.2清零) - 小时-三维构型图</div>
+                            <div id="3d-model-chart" class="chart-container"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- 数据指标选择栏 -->
+                    <div class="data-indicators">
+                        <button class="indicator-item active">台阶段位/mm</button>
+                        <button class="indicator-item">X轴位移/mm</button>
+                        <button class="indicator-item">Y轴位移/mm</button>
+                        <button class="indicator-item">Z轴位移/mm</button>
+                        <button class="indicator-item">相对位移/mm</button>
+                        <button class="indicator-item">X轴相对位移/mm</button>
+                        <button class="indicator-item">Y轴相对位移/mm</button>
+                        <button class="indicator-item">X轴加速度/mg</button>
+                        <button class="indicator-item">Y轴加速度/mg</button>
+                        <button class="indicator-item">Z轴加速度/mg</button>
+                        <button class="indicator-item">温度/℃</button>
+                    </div>
+                    
+                    <!-- 数据表格控制栏 -->
+                    <div class="table-control-bar">
+                        <div class="control-left">
+                            <button class="export-table-btn">导出表</button>
+                        </div>
+                        <div class="control-right">
+                            <span class="search-time">搜索耗时：0.02秒</span>
+                            <span class="total-records">总共：6条数据</span>
+                            <div class="pagination">
+                                <span>跳至</span>
+                                <input type="number" class="page-input" value="1" min="1" max="13">
+                                <span>页</span>
+                                <button class="page-btn">确定</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 数据表格 -->
+                    <div class="data-table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>采集时间</th>
+                                    <!-- 生成-78米到0米的列头 -->
+                                    <th>-78米</th>
+                                    <th>-77米</th>
+                                    <th>-76米</th>
+                                    <th>-75米</th>
+                                    <th>-74米</th>
+                                    <th>-73米</th>
+                                    <th>-72米</th>
+                                    <th>-71米</th>
+                                    <th>-70米</th>
+                                    <th>-69米</th>
+                                    <th>-68米</th>
+                                    <th>-67米</th>
+                                    <th>-66米</th>
+                                    <th>-65米</th>
+                                    <th>-64米</th>
+                                    <th>-63米</th>
+                                    <th>-62米</th>
+                                    <th>-61米</th>
+                                    <th>-60米</th>
+                                    <th>-59米</th>
+                                    <th>-58米</th>
+                                    <th>-57米</th>
+                                    <th>-56米</th>
+                                    <th>-55米</th>
+                                    <th>-54米</th>
+                                    <th>-53米</th>
+                                    <th>-52米</th>
+                                    <th>-51米</th>
+                                    <th>-50米</th>
+                                    <th>-49米</th>
+                                    <th>-48米</th>
+                                    <th>-47米</th>
+                                    <th>-46米</th>
+                                    <th>-45米</th>
+                                    <th>-44米</th>
+                                    <th>-43米</th>
+                                    <th>-42米</th>
+                                    <th>-41米</th>
+                                    <th>-40米</th>
+                                    <th>-39米</th>
+                                    <th>-38米</th>
+                                    <th>-37米</th>
+                                    <th>-36米</th>
+                                    <th>-35米</th>
+                                    <th>-34米</th>
+                                    <th>-33米</th>
+                                    <th>-32米</th>
+                                    <th>-31米</th>
+                                    <th>-30米</th>
+                                    <th>-29米</th>
+                                    <th>-28米</th>
+                                    <th>-27米</th>
+                                    <th>-26米</th>
+                                    <th>-25米</th>
+                                    <th>-24米</th>
+                                    <th>-23米</th>
+                                    <th>-22米</th>
+                                    <th>-21米</th>
+                                    <th>-20米</th>
+                                    <th>-19米</th>
+                                    <th>-18米</th>
+                                    <th>-17米</th>
+                                    <th>-16米</th>
+                                    <th>-15米</th>
+                                    <th>-14米</th>
+                                    <th>-13米</th>
+                                    <th>-12米</th>
+                                    <th>-11米</th>
+                                    <th>-10米</th>
+                                    <th>-9米</th>
+                                    <th>-8米</th>
+                                    <th>-7米</th>
+                                    <th>-6米</th>
+                                    <th>-5米</th>
+                                    <th>-4米</th>
+                                    <th>-3米</th>
+                                    <th>-2米</th>
+                                    <th>-1米</th>
+                                    <th>0米</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- 生成5行随机数据 -->
+                                <tr>
+                                    <td>2026-01-20 10:29:58</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>5.427</td>
+                                    <td>6.138</td>
+                                    <td>6.138</td>
+                                    <td>6.138</td>
+                                    <td>6.138</td>
+                                    <td>6.138</td>
+                                    <td>6.138</td>
+                                    <td>4.735</td>
+                                    <td>4.735</td>
+                                    <td>4.735</td>
+                                    <td>4.735</td>
+                                    <td>4.735</td>
+                                    <td>8.696</td>
+                                    <td>8.696</td>
+                                    <td>8.696</td>
+                                    <td>8.696</td>
+                                    <td>8.696</td>
+                                    <td>8.696</td>
+                                    <td>16.019</td>
+                                    <td>16.019</td>
+                                    <td>16.019</td>
+                                    <td>16.019</td>
+                                    <td>16.019</td>
+                                    <td>16.019</td>
+                                    <td>16.019</td>
+                                    <td>16.019</td>
+                                    <td>16.019</td>
+                                    <td>18.648</td>
+                                    <td>18.648</td>
+                                    <td>18.648</td>
+                                    <td>18.648</td>
+                                    <td>18.648</td>
+                                    <td>18.648</td>
+                                    <td>18.648</td>
+                                    <td>18.648</td>
+                                    <td>18.648</td>
+                                    <td>18.544</td>
+                                    <td>18.544</td>
+                                    <td>18.544</td>
+                                    <td>18.544</td>
+                                    <td>18.544</td>
+                                    <td>18.544</td>
+                                    <td>18.544</td>
+                                    <td>18.544</td>
+                                    <td>24.72</td>
+                                    <td>24.72</td>
+                                    <td>24.72</td>
+                                    <td>24.72</td>
+                                    <td>24.72</td>
+                                    <td>24.72</td>
+                                    <td>24.72</td>
+                                    <td>24.72</td>
+                                    <td>24.72</td>
+                                    <td>28.223</td>
+                                    <td>28.223</td>
+                                    <td>28.223</td>
+                                    <td>28.223</td>
+                                    <td>28.223</td>
+                                    <td>28.223</td>
+                                    <td>28.223</td>
+                                    <td>28.223</td>
+                                    <td>28.223</td>
+                                    <td>28.522</td>
+                                    <td>28.522</td>
+                                    <td>28.522</td>
+                                    <td>28.522</td>
+                                    <td>28.522</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                </tr>
+                                <tr>
+                                    <td>2026-01-20 09:29:58</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>5.382</td>
+                                    <td>6.091</td>
+                                    <td>6.091</td>
+                                    <td>6.091</td>
+                                    <td>6.091</td>
+                                    <td>6.091</td>
+                                    <td>6.091</td>
+                                    <td>4.698</td>
+                                    <td>4.698</td>
+                                    <td>4.698</td>
+                                    <td>4.698</td>
+                                    <td>4.698</td>
+                                    <td>8.652</td>
+                                    <td>8.652</td>
+                                    <td>8.652</td>
+                                    <td>8.652</td>
+                                    <td>8.652</td>
+                                    <td>8.652</td>
+                                    <td>15.983</td>
+                                    <td>15.983</td>
+                                    <td>15.983</td>
+                                    <td>15.983</td>
+                                    <td>15.983</td>
+                                    <td>15.983</td>
+                                    <td>15.983</td>
+                                    <td>15.983</td>
+                                    <td>15.983</td>
+                                    <td>18.612</td>
+                                    <td>18.612</td>
+                                    <td>18.612</td>
+                                    <td>18.612</td>
+                                    <td>18.612</td>
+                                    <td>18.612</td>
+                                    <td>18.612</td>
+                                    <td>18.612</td>
+                                    <td>18.612</td>
+                                    <td>18.508</td>
+                                    <td>18.508</td>
+                                    <td>18.508</td>
+                                    <td>18.508</td>
+                                    <td>18.508</td>
+                                    <td>18.508</td>
+                                    <td>18.508</td>
+                                    <td>18.508</td>
+                                    <td>24.684</td>
+                                    <td>24.684</td>
+                                    <td>24.684</td>
+                                    <td>24.684</td>
+                                    <td>24.684</td>
+                                    <td>24.684</td>
+                                    <td>24.684</td>
+                                    <td>24.684</td>
+                                    <td>24.684</td>
+                                    <td>28.187</td>
+                                    <td>28.187</td>
+                                    <td>28.187</td>
+                                    <td>28.187</td>
+                                    <td>28.187</td>
+                                    <td>28.187</td>
+                                    <td>28.187</td>
+                                    <td>28.187</td>
+                                    <td>28.187</td>
+                                    <td>28.486</td>
+                                    <td>28.486</td>
+                                    <td>28.486</td>
+                                    <td>28.486</td>
+                                    <td>28.486</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                </tr>
+                                <tr>
+                                    <td>2026-01-20 08:29:58</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>5.337</td>
+                                    <td>6.044</td>
+                                    <td>6.044</td>
+                                    <td>6.044</td>
+                                    <td>6.044</td>
+                                    <td>6.044</td>
+                                    <td>6.044</td>
+                                    <td>4.661</td>
+                                    <td>4.661</td>
+                                    <td>4.661</td>
+                                    <td>4.661</td>
+                                    <td>4.661</td>
+                                    <td>8.608</td>
+                                    <td>8.608</td>
+                                    <td>8.608</td>
+                                    <td>8.608</td>
+                                    <td>8.608</td>
+                                    <td>8.608</td>
+                                    <td>15.947</td>
+                                    <td>15.947</td>
+                                    <td>15.947</td>
+                                    <td>15.947</td>
+                                    <td>15.947</td>
+                                    <td>15.947</td>
+                                    <td>15.947</td>
+                                    <td>15.947</td>
+                                    <td>15.947</td>
+                                    <td>18.576</td>
+                                    <td>18.576</td>
+                                    <td>18.576</td>
+                                    <td>18.576</td>
+                                    <td>18.576</td>
+                                    <td>18.576</td>
+                                    <td>18.576</td>
+                                    <td>18.576</td>
+                                    <td>18.576</td>
+                                    <td>18.472</td>
+                                    <td>18.472</td>
+                                    <td>18.472</td>
+                                    <td>18.472</td>
+                                    <td>18.472</td>
+                                    <td>18.472</td>
+                                    <td>18.472</td>
+                                    <td>18.472</td>
+                                    <td>24.648</td>
+                                    <td>24.648</td>
+                                    <td>24.648</td>
+                                    <td>24.648</td>
+                                    <td>24.648</td>
+                                    <td>24.648</td>
+                                    <td>24.648</td>
+                                    <td>24.648</td>
+                                    <td>24.648</td>
+                                    <td>28.151</td>
+                                    <td>28.151</td>
+                                    <td>28.151</td>
+                                    <td>28.151</td>
+                                    <td>28.151</td>
+                                    <td>28.151</td>
+                                    <td>28.151</td>
+                                    <td>28.151</td>
+                                    <td>28.151</td>
+                                    <td>28.450</td>
+                                    <td>28.450</td>
+                                    <td>28.450</td>
+                                    <td>28.450</td>
+                                    <td>28.450</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                </tr>
+                                <tr>
+                                    <td>2026-01-20 07:29:58</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>5.292</td>
+                                    <td>5.997</td>
+                                    <td>5.997</td>
+                                    <td>5.997</td>
+                                    <td>5.997</td>
+                                    <td>5.997</td>
+                                    <td>5.997</td>
+                                    <td>4.624</td>
+                                    <td>4.624</td>
+                                    <td>4.624</td>
+                                    <td>4.624</td>
+                                    <td>4.624</td>
+                                    <td>8.564</td>
+                                    <td>8.564</td>
+                                    <td>8.564</td>
+                                    <td>8.564</td>
+                                    <td>8.564</td>
+                                    <td>8.564</td>
+                                    <td>15.911</td>
+                                    <td>15.911</td>
+                                    <td>15.911</td>
+                                    <td>15.911</td>
+                                    <td>15.911</td>
+                                    <td>15.911</td>
+                                    <td>15.911</td>
+                                    <td>15.911</td>
+                                    <td>15.911</td>
+                                    <td>18.540</td>
+                                    <td>18.540</td>
+                                    <td>18.540</td>
+                                    <td>18.540</td>
+                                    <td>18.540</td>
+                                    <td>18.540</td>
+                                    <td>18.540</td>
+                                    <td>18.540</td>
+                                    <td>18.540</td>
+                                    <td>18.436</td>
+                                    <td>18.436</td>
+                                    <td>18.436</td>
+                                    <td>18.436</td>
+                                    <td>18.436</td>
+                                    <td>18.436</td>
+                                    <td>18.436</td>
+                                    <td>18.436</td>
+                                    <td>24.612</td>
+                                    <td>24.612</td>
+                                    <td>24.612</td>
+                                    <td>24.612</td>
+                                    <td>24.612</td>
+                                    <td>24.612</td>
+                                    <td>24.612</td>
+                                    <td>24.612</td>
+                                    <td>24.612</td>
+                                    <td>28.115</td>
+                                    <td>28.115</td>
+                                    <td>28.115</td>
+                                    <td>28.115</td>
+                                    <td>28.115</td>
+                                    <td>28.115</td>
+                                    <td>28.115</td>
+                                    <td>28.115</td>
+                                    <td>28.115</td>
+                                    <td>28.414</td>
+                                    <td>28.414</td>
+                                    <td>28.414</td>
+                                    <td>28.414</td>
+                                    <td>28.414</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                </tr>
+                                <tr>
+                                    <td>2026-01-20 06:29:58</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>5.247</td>
+                                    <td>5.950</td>
+                                    <td>5.950</td>
+                                    <td>5.950</td>
+                                    <td>5.950</td>
+                                    <td>5.950</td>
+                                    <td>5.950</td>
+                                    <td>4.587</td>
+                                    <td>4.587</td>
+                                    <td>4.587</td>
+                                    <td>4.587</td>
+                                    <td>4.587</td>
+                                    <td>8.520</td>
+                                    <td>8.520</td>
+                                    <td>8.520</td>
+                                    <td>8.520</td>
+                                    <td>8.520</td>
+                                    <td>8.520</td>
+                                    <td>15.875</td>
+                                    <td>15.875</td>
+                                    <td>15.875</td>
+                                    <td>15.875</td>
+                                    <td>15.875</td>
+                                    <td>15.875</td>
+                                    <td>15.875</td>
+                                    <td>15.875</td>
+                                    <td>15.875</td>
+                                    <td>18.504</td>
+                                    <td>18.504</td>
+                                    <td>18.504</td>
+                                    <td>18.504</td>
+                                    <td>18.504</td>
+                                    <td>18.504</td>
+                                    <td>18.504</td>
+                                    <td>18.504</td>
+                                    <td>18.504</td>
+                                    <td>18.400</td>
+                                    <td>18.400</td>
+                                    <td>18.400</td>
+                                    <td>18.400</td>
+                                    <td>18.400</td>
+                                    <td>18.400</td>
+                                    <td>18.400</td>
+                                    <td>18.400</td>
+                                    <td>24.576</td>
+                                    <td>24.576</td>
+                                    <td>24.576</td>
+                                    <td>24.576</td>
+                                    <td>24.576</td>
+                                    <td>24.576</td>
+                                    <td>24.576</td>
+                                    <td>24.576</td>
+                                    <td>24.576</td>
+                                    <td>28.079</td>
+                                    <td>28.079</td>
+                                    <td>28.079</td>
+                                    <td>28.079</td>
+                                    <td>28.079</td>
+                                    <td>28.079</td>
+                                    <td>28.079</td>
+                                    <td>28.079</td>
+                                    <td>28.079</td>
+                                    <td>28.378</td>
+                                    <td>28.378</td>
+                                    <td>28.378</td>
+                                    <td>28.378</td>
+                                    <td>28.378</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                </tr>
+                                <tr>
+                                    <td>2026-01-20 05:29:58</td>
+                                    <td>5.202</td>
+                                    <td>5.202</td>
+                                    <td>5.202</td>
+                                    <td>5.202</td>
+                                    <td>5.202</td>
+                                    <td>5.202</td>
+                                    <td>5.202</td>
+                                    <td>5.903</td>
+                                    <td>5.903</td>
+                                    <td>5.903</td>
+                                    <td>5.903</td>
+                                    <td>5.903</td>
+                                    <td>5.903</td>
+                                    <td>4.550</td>
+                                    <td>4.550</td>
+                                    <td>4.550</td>
+                                    <td>4.550</td>
+                                    <td>4.550</td>
+                                    <td>8.476</td>
+                                    <td>8.476</td>
+                                    <td>8.476</td>
+                                    <td>8.476</td>
+                                    <td>8.476</td>
+                                    <td>8.476</td>
+                                    <td>15.839</td>
+                                    <td>15.839</td>
+                                    <td>15.839</td>
+                                    <td>15.839</td>
+                                    <td>15.839</td>
+                                    <td>15.839</td>
+                                    <td>15.839</td>
+                                    <td>15.839</td>
+                                    <td>15.839</td>
+                                    <td>18.468</td>
+                                    <td>18.468</td>
+                                    <td>18.468</td>
+                                    <td>18.468</td>
+                                    <td>18.468</td>
+                                    <td>18.468</td>
+                                    <td>18.468</td>
+                                    <td>18.468</td>
+                                    <td>18.468</td>
+                                    <td>18.364</td>
+                                    <td>18.364</td>
+                                    <td>18.364</td>
+                                    <td>18.364</td>
+                                    <td>18.364</td>
+                                    <td>18.364</td>
+                                    <td>18.364</td>
+                                    <td>18.364</td>
+                                    <td>24.540</td>
+                                    <td>24.540</td>
+                                    <td>24.540</td>
+                                    <td>24.540</td>
+                                    <td>24.540</td>
+                                    <td>24.540</td>
+                                    <td>24.540</td>
+                                    <td>24.540</td>
+                                    <td>24.540</td>
+                                    <td>28.043</td>
+                                    <td>28.043</td>
+                                    <td>28.043</td>
+                                    <td>28.043</td>
+                                    <td>28.043</td>
+                                    <td>28.043</td>
+                                    <td>28.043</td>
+                                    <td>28.043</td>
+                                    <td>28.043</td>
+                                    <td>28.342</td>
+                                    <td>28.342</td>
+                                    <td>28.342</td>
+                                    <td>28.342</td>
+                                    <td>28.342</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                    <td>0</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- 三维姿态选项卡内容 -->
+                <div class="tab-content" id="tab-posture">
+                    <div style="padding: 20px; text-align: center; color: #666;">
+                        <div style="margin-bottom: 10px; text-align: left;">
+                            <label for="3d-view-select" style="margin-right: 10px;">视图选择：</label>
+                            <select id="3d-view-select" style="padding: 5px; border: 1px solid #ddd; border-radius: 4px;">
+                                <option value="front">正视图</option>
+                                <option value="top">俯视图</option>
+                                <option value="left">左视图</option>
+                                <option value="free">自由视图</option>
+                            </select>
+                        </div>
+                        <div id="3d-posture-chart" style="height: 500px; margin-top: 20px;"></div>
+                    </div>
+                </div>
+                
+                <!-- 趋势图选项卡内容 -->
+                <div class="tab-content" id="tab-trend">
+                    <div class="data-points-charts">
+                        <!-- 累计位移趋势图 -->
+                        <div class="data-point-chart">
+                            <div class="chart-header">
+                                <div class="chart-title">
+                                    <select class="time-selector">
+                                        <option>2026-01-20 15:29:59</option>
+                                    </select>
+                                </div>
+                                <button class="export-btn" style="cursor: pointer; transition: all 0.2s ease;" onmousedown="this.style.transform='scale(0.95)'; this.style.boxShadow='inset 0 2px 4px rgba(0,0,0,0.2)';" onmouseup="this.style.transform='scale(1)'; this.style.boxShadow='none';" onmouseleave="this.style.transform='scale(1)'; this.style.boxShadow='none';">导出图</button>
+                            </div>
+                            <div class="chart-subtitle">SJ45 - 累计趋势图</div>
+                            <div id="cumulative-displacement-chart-trend" class="chart-container"></div>
+                        </div>
+                        <!-- 相对位移趋势图 -->
+                        <div class="data-point-chart">
+                            <div class="chart-header">
+                                <div class="chart-title">
+                                    <select class="time-selector">
+                                        <option>2026-01-20 15:29:59</option>
+                                    </select>
+                                </div>
+                                <button class="export-btn" style="cursor: pointer; transition: all 0.2s ease;" onmousedown="this.style.transform='scale(0.95)'; this.style.boxShadow='inset 0 2px 4px rgba(0,0,0,0.2)';" onmouseup="this.style.transform='scale(1)'; this.style.boxShadow='none';" onmouseleave="this.style.transform='scale(1)'; this.style.boxShadow='none';">导出图</button>
+                            </div>
+                            <div class="chart-subtitle">SJ45 - 相对趋势图</div>
+                            <div id="relative-displacement-chart-trend" class="chart-container"></div>
+                        </div>
+
+
+
+                         <!-- 控制面板 -->
+                    <div style="margin: 20px 0; background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
+                        <!-- 标签页 -->
+                        <div style="margin-bottom: 20px;">
+                            <span style="margin-right: 15px; font-weight: bold; color: #1890ff; cursor: pointer;">静态图</span>
+                            <span style="margin-right: 10px; cursor: pointer;">趋势演化</span>
+                            <span style="font-size: 12px; color: #999;">(日均)</span>
+                        </div>
+                        
+                        <!-- 时间段选择 -->
+                        <div style="margin-bottom: 15px;">
+                            <div style="margin-bottom: 10px;">
+                                <label style="margin-right: 10px;">时间段：</label>
+                                <span style="margin-right: 15px; font-size: 12px;">日均</span>
+                                <span style="margin-right: 10px; font-size: 12px;">小时</span>
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <button class="clickable-btn" style="margin-right: 10px; padding: 5px 10px; background: #1890ff; color: white; border: none; border-radius: 4px; font-size: 12px;">近7天</button>
+                                <button class="clickable-btn" style="margin-right: 10px; padding: 5px 10px; background: #f0f0f0; color: #666; border: none; border-radius: 4px; font-size: 12px;">近30天</button>
+                                <button class="clickable-btn" style="margin-right: 10px; padding: 5px 10px; background: #f0f0f0; color: #666; border: none; border-radius: 4px; font-size: 12px;">近90天</button>
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <input type="date" style="margin-right: 10px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;" value="2026-01-14">
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <input type="date" style="margin-right: 10px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;" value="2026-01-20">
+                            </div>
+                        </div>
+                        
+                        <!-- 采集时间列表 -->
+                        <div style="margin-bottom: 15px;">
+                            <div style="margin-bottom: 10px;">
+                                <span style="font-weight: bold; font-size: 14px; margin-bottom: 10px; display: block;">采集时间列表</span>
+                                <label style="margin-right: 10px; font-size: 12px;"><input type="checkbox" checked> 全选</label>
+                                <button class="clickable-btn" style="margin-right: 30px; padding: 3px 8px; background: #f0f0f0; color: #666; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">清空</button>
+                                <span style="font-size: 12px; color: #999;">已选7项</span>
+                            </div>
+                            <div style="border: 1px solid #ddd; border-radius: 4px; padding: 10px; max-height: 150px; overflow-y: auto;">
+                                <div style="margin-bottom: 5px; font-size: 12px;"><input type="checkbox" checked> 2026-01-20</div>
+                                <div style="margin-bottom: 5px; font-size: 12px;"><input type="checkbox" checked> 2026-01-19</div>
+                                <div style="margin-bottom: 5px; font-size: 12px;"><input type="checkbox" checked> 2026-01-18</div>
+                                <div style="margin-bottom: 5px; font-size: 12px;"><input type="checkbox" checked> 2026-01-17</div>
+                                <div style="margin-bottom: 5px; font-size: 12px;"><input type="checkbox" checked> 2026-01-16</div>
+                                <div style="margin-bottom: 5px; font-size: 12px;"><input type="checkbox" checked> 2026-01-15</div>
+                                <div style="margin-bottom: 5px; font-size: 12px;"><input type="checkbox" checked> 2026-01-14</div>
+                            </div>
+                        </div>
+                        
+                        <!-- 图类型 -->
+                        <div style="margin-bottom: 15px;">
+                            <span style="font-weight: bold; font-size: 14px; margin-bottom: 10px; display: block;">图类型</span>
+                            <div style="margin-bottom: 10px; font-size: 12px;">
+                                <label style="margin-right: 20px;"><input type="radio" name="chart-type" checked> 相对位移</label>
+                                <label style="margin-right: 20px;"><input type="radio" name="chart-type"> 滑面聚类判识</label>
+                            </div>
+                            <div style="font-size: 12px;">
+                                <label style="margin-right: 20px;"><input type="radio" name="chart-type"> 钻孔柱状图</label>
+                                <label style="margin-right: 20px;"><input type="radio" name="chart-type"> 传感器分布图</label>
+                            </div>
+                        </div>
+                        
+                        <!-- 位移方向 -->
+                        <div style="margin-bottom: 15px;">
+                            <span style="font-weight: bold; font-size: 14px; margin-bottom: 10px; display: block;">位移方向</span>
+                            <div style="margin-top: 10px;">
+                                <button class="clickable-btn" style="margin-right: 10px; padding: 5px 15px; background: #1890ff; color: white; border: none; border-radius: 4px; font-size: 12px;">合</button>
+                                <button class="clickable-btn" style="margin-right: 10px; padding: 5px 15px; background: #f0f0f0; color: #666; border: none; border-radius: 4px; font-size: 12px;">X轴</button>
+                                <button class="clickable-btn" style="margin-right: 10px; padding: 5px 15px; background: #f0f0f0; color: #666; border: none; border-radius: 4px; font-size: 12px;">Y轴</button>
+                            </div>
+                        </div>
+                        
+                        <!-- 累计位移区间 -->
+                        <div style="margin-bottom: 15px;">
+                            <span style="font-weight: bold; font-size: 14px; margin-bottom: 10px; display: block;">累计位移区间</span>
+                            <div style="margin-top: 10px; font-size: 12px;">
+                                <label style="margin-right: 10px;">最小值：</label>
+                                <input type="text" style="width: 60px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; margin-right: 5px;">
+                                <label style="margin-right: 5px;">~</label>
+                                <label style="margin-right: 10px;">最大值：</label>
+                                <input type="text" style="width: 60px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; margin-right: 5px;">
+                                <span>mm</span>
+                            </div>
+                        </div>
+                        
+                        <!-- 相对位移区间 -->
+                        <div style="margin-bottom: 15px;">
+                            <span style="font-weight: bold; font-size: 14px; margin-bottom: 10px; display: block;">相对位移区间</span>
+                            <div style="margin-top: 10px; font-size: 12px;">
+                                <label style="margin-right: 10px;">最小值：</label>
+                                <input type="text" style="width: 60px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; margin-right: 5px;">
+                                <label style="margin-right: 5px;">~</label>
+                                <label style="margin-right: 10px;">最大值：</label>
+                                <input type="text" style="width: 60px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; margin-right: 5px;">
+                                <span>mm</span>
+                            </div>
+                        </div>
+                        
+                        <!-- 功能 -->
+                        <div>
+                            <span style="font-weight: bold; font-size: 14px; margin-bottom: 10px; display: block;">功能</span>
+                            <div style="margin-top: 10px; margin-bottom: 10px; font-size: 12px;">
+                                <label style="margin-right: 20px;"><input type="checkbox" checked> 累计位移</label>
+                                <label style="margin-right: 20px;"><input type="checkbox" checked> 相对位移</label>
+                            </div>
+                            <button class="clickable-btn" style="padding: 5px 15px; background: #f0f0f0; color: #666; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+                                <span style="margin-right: 5px;">导出图</span>
+                            </button>
+                        </div>
+                    </div>
+                    </div>
+                    
+                   
+                </div>
+
+                <!-- 节点位移选项卡内容 -->
+                <div class="tab-content" id="tab-nodedisp">
+                    <div class="data-points-charts">
+                        <!-- 节点位移图 -->
+                        <div class="data-point-chart">
+                            <div class="chart-header">
+                                <div class="chart-title">
+                                    <select class="time-selector">
+                                        <option>2026-01-20 15:29:59</option>
+                                    </select>
+                                </div>
+                                <button class="export-btn">导出图</button>
+                            </div>
+                            <div id="nodedisp-subtitle" style="padding: 10px 15px; font-size: 12px; color: #333; font-weight: bold; background: #f0f7ff; border-bottom: 1px solid #e0e0e0;">SJ45 - 节点位移图</div>
+                            <div id="nodedisp-chart" style="width: 100%; height: 300px; padding: 15px;"></div>
+                        </div>
+                    
+                    
+                    <!-- 控制面板 -->
+                    <div style="margin: 20px 0; background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
+                        <!-- 时间段选择 -->
+                        <div style="margin-bottom: 15px;">
+                            <div style="margin-bottom: 10px;">
+                                <label style="margin-right: 10px;">时间段：</label>
+                                <span style="margin-right: 15px; font-size: 12px;">日均</span>
+                                <span style="margin-right: 10px; font-size: 12px;">小时</span>
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <button style="margin-right: 10px; padding: 5px 10px; background: #1890ff; color: white; border: none; border-radius: 4px; font-size: 12px;">近7天</button>
+                                <button style="margin-right: 10px; padding: 5px 10px; background: #f0f0f0; color: #666; border: none; border-radius: 4px; font-size: 12px;">近30天</button>
+                                <button style="margin-right: 10px; padding: 5px 10px; background: #f0f0f0; color: #666; border: none; border-radius: 4px; font-size: 12px;">近90天</button>
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <input type="date" style="margin-right: 10px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;" value="2026-01-14">
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <input type="date" style="margin-right: 10px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;" value="2026-01-20">
+                            </div>
+                        </div>
+                        
+                        <!-- 功能 -->
+                        <div>
+                            <span style="font-weight: bold; font-size: 14px; margin-bottom: 10px; display: block;">功能</span>
+                            <div style="margin-top: 10px; margin-bottom: 10px; font-size: 12px;">
+                                <label style="margin-right: 20px;"><input type="checkbox" checked> 累计位移</label>
+                            </div>
+                            <button style="padding: 5px 15px; background: #f0f0f0; color: #666; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+                                <span style="margin-right: 5px;">导出图</span>
+                            </button>
+                        </div>
+                    </div>
+                    </div>
+                    
+                    <!-- 数据表格控制栏 -->
+                    <div class="table-control-bar">
+                        <div class="control-left">
+                            <button class="export-table-btn">导出表</button>
+                        </div>
+                        <div class="control-right">
+                            <span class="search-time">搜索耗时：0.02秒</span>
+                            <span class="total-records">总共：6条数据</span>
+                            <div class="pagination">
+                                <span>跳至</span>
+                                <input type="number" class="page-input" value="1" min="1" max="13">
+                                <span>页</span>
+                                <button class="page-btn">确定</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 数据表格 -->
+                    <div class="data-table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>采集时间</th>
+                                    <th>-1米</th>
+                                    <th>-2米</th>
+                                    <th>-3米</th>
+                                    <th>-4米</th>
+                                    <th>-5米</th>
+                                    <th>-6米</th>
+                                    <th>-7米</th>
+                                    <th>-8米</th>
+                                    <th>-9米</th>
+                                    <th>-10米</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- 示例数据 -->
+                                <tr>
+                                    <td>2026-01-20 15:29:59</td>
+                                    <td>3.00</td>
+                                    <td>2.95</td>
+                                    <td>2.90</td>
+                                    <td>2.85</td>
+                                    <td>2.80</td>
+                                    <td>2.75</td>
+                                    <td>2.70</td>
+                                    <td>2.65</td>
+                                    <td>2.60</td>
+                                    <td>2.55</td>
+                                </tr>
+                                <tr>
+                                    <td>2026-01-19 15:29:59</td>
+                                    <td>3.05</td>
+                                    <td>3.00</td>
+                                    <td>2.95</td>
+                                    <td>2.90</td>
+                                    <td>2.85</td>
+                                    <td>2.80</td>
+                                    <td>2.75</td>
+                                    <td>2.70</td>
+                                    <td>2.65</td>
+                                    <td>2.60</td>
+                                </tr>
+                                <tr>
+                                    <td>2026-01-18 15:29:59</td>
+                                    <td>3.05</td>
+                                    <td>3.00</td>
+                                    <td>2.95</td>
+                                    <td>2.90</td>
+                                    <td>2.85</td>
+                                    <td>2.80</td>
+                                    <td>2.75</td>
+                                    <td>2.70</td>
+                                    <td>2.65</td>
+                                    <td>2.60</td>
+                                </tr>
+                                <tr>
+                                    <td>2026-01-17 15:29:59</td>
+                                    <td>2.90</td>
+                                    <td>2.85</td>
+                                    <td>2.80</td>
+                                    <td>2.75</td>
+                                    <td>2.70</td>
+                                    <td>2.65</td>
+                                    <td>2.60</td>
+                                    <td>2.55</td>
+                                    <td>2.50</td>
+                                    <td>2.45</td>
+                                </tr>
+                                <tr>
+                                    <td>2026-01-16 15:29:59</td>
+                                    <td>3.05</td>
+                                    <td>3.00</td>
+                                    <td>2.95</td>
+                                    <td>2.90</td>
+                                    <td>2.85</td>
+                                    <td>2.80</td>
+                                    <td>2.75</td>
+                                    <td>2.70</td>
+                                    <td>2.65</td>
+                                    <td>2.60</td>
+                                </tr>
+                                <tr>
+                                    <td>2026-01-15 15:29:59</td>
+                                    <td>3.05</td>
+                                    <td>3.00</td>
+                                    <td>2.95</td>
+                                    <td>2.90</td>
+                                    <td>2.85</td>
+                                    <td>2.80</td>
+                                    <td>2.75</td>
+                                    <td>2.70</td>
+                                    <td>2.65</td>
+                                    <td>2.60</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- 聚类滑面关联选项卡内容 -->
+                <div class="tab-content" id="tab-cluster">
+                   
+                    
+                    <div class="data-points-charts">
+                        <!-- 累计趋势图 -->
+                        <div class="data-point-chart">
+                            <div class="chart-header">
+                                <div class="chart-title">
+                                    <select class="time-selector">
+                                        <option>2026-01-20 15:29:59</option>
+                                    </select>
+                                </div>
+                                <button class="export-btn">导出图</button>
+                            </div>
+                            <div id="cluster-cumulative-subtitle" style="padding: 10px 15px; font-size: 12px; color: #333; font-weight: bold; background: #f0f7ff; border-bottom: 1px solid #e0e0e0;">SJ45 - 累计趋势图</div>
+                            <div id="cumulative-trend-chart" style="width: 100%; height: 300px; padding: 15px;"></div>
+                        </div>
+                        <!-- 滑坡滑动面智能判识图 -->
+                        <div class="data-point-chart">
+                            <div class="chart-header">
+                                <div class="chart-title">
+                                    <select class="time-selector">
+                                        <option>2026-01-20 15:29:59</option>
+                                    </select>
+                                </div>
+                                <button class="export-btn">导出图</button>
+                            </div>
+                            <div id="cluster-sliding-subtitle" style="padding: 10px 15px; font-size: 12px; color: #333; font-weight: bold; background: #f0f7ff; border-bottom: 1px solid #e0e0e0;">SJ45 - 滑坡滑动面智能判识图</div>
+                            <div id="slide-plane-chart" style="width: 100%; height: 300px; padding: 15px;"></div>
+                        </div>
+                         <!-- 控制面板 -->
+                    <div style="margin: 20px 0; background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
+                        <!-- 标签页 -->
+                        <div style="margin-bottom: 20px;">
+                            <span style="margin-right: 15px; font-weight: bold; color: #1890ff; cursor: pointer;">静态图</span>
+                            <span style="margin-right: 10px; cursor: pointer;">趋势演化</span>
+                            <span style="font-size: 12px; color: #999;">(日均)</span>
+                        </div>
+                        
+                        <!-- 时间段选择 -->
+                        <div style="margin-bottom: 15px;">
+                            <div style="margin-bottom: 10px;">
+                                <label style="margin-right: 10px;">时间段：</label>
+                                <span style="margin-right: 15px; font-size: 12px;">日均</span>
+                                <span style="margin-right: 10px; font-size: 12px;">小时</span>
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <button style="margin-right: 10px; padding: 5px 10px; background: #1890ff; color: white; border: none; border-radius: 4px; font-size: 12px;">近7天</button>
+                                <button style="margin-right: 10px; padding: 5px 10px; background: #f0f0f0; color: #666; border: none; border-radius: 4px; font-size: 12px;">近30天</button>
+                                <button style="margin-right: 10px; padding: 5px 10px; background: #f0f0f0; color: #666; border: none; border-radius: 4px; font-size: 12px;">近90天</button>
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <input type="date" style="margin-right: 10px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;" value="2026-01-14">
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <input type="date" style="margin-right: 10px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;" value="2026-01-20">
+                            </div>
+                        </div>
+                        
+                        <!-- 采集时间列表 -->
+                        <div style="margin-bottom: 15px;">
+                            <div style="margin-bottom: 10px;">
+                                <span style="font-weight: bold; font-size: 14px; margin-bottom: 10px; display: block;">采集时间列表</span>
+                                <label style="margin-right: 10px; font-size: 12px;"><input type="checkbox" checked> 全选</label>
+                                <button style="margin-right: 30px; padding: 3px 8px; background: #f0f0f0; color: #666; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">清空</button>
+                                <span style="font-size: 12px; color: #999;">已选7项</span>
+                            </div>
+                            <div style="border: 1px solid #ddd; border-radius: 4px; padding: 10px; max-height: 150px; overflow-y: auto;">
+                                <div style="margin-bottom: 5px; font-size: 12px;"><input type="checkbox" checked> 2026-01-20</div>
+                                <div style="margin-bottom: 5px; font-size: 12px;"><input type="checkbox" checked> 2026-01-19</div>
+                                <div style="margin-bottom: 5px; font-size: 12px;"><input type="checkbox" checked> 2026-01-18</div>
+                                <div style="margin-bottom: 5px; font-size: 12px;"><input type="checkbox" checked> 2026-01-17</div>
+                                <div style="margin-bottom: 5px; font-size: 12px;"><input type="checkbox" checked> 2026-01-16</div>
+                                <div style="margin-bottom: 5px; font-size: 12px;"><input type="checkbox" checked> 2026-01-15</div>
+                                <div style="margin-bottom: 5px; font-size: 12px;"><input type="checkbox" checked> 2026-01-14</div>
+                            </div>
+                        </div>
+                        
+                        <!-- 图类型 -->
+                        <div style="margin-bottom: 15px;">
+                            <span style="font-weight: bold; font-size: 14px; margin-bottom: 10px; display: block;">图类型</span>
+                            <div style="margin-bottom: 10px; font-size: 12px;">
+                                <label style="margin-right: 20px;"><input type="radio" name="chart-type" checked> 相对位移</label>
+                                <label style="margin-right: 20px;"><input type="radio" name="chart-type"> 滑面聚类判识</label>
+                            </div>
+                            <div style="font-size: 12px;">
+                                <label style="margin-right: 20px;"><input type="radio" name="chart-type"> 钻孔柱状图</label>
+                                <label style="margin-right: 20px;"><input type="radio" name="chart-type"> 传感器分布图</label>
+                            </div>
+                        </div>
+                        
+                        <!-- 位移方向 -->
+                        <div style="margin-bottom: 15px;">
+                            <span style="font-weight: bold; font-size: 14px; margin-bottom: 10px; display: block;">位移方向</span>
+                            <div style="margin-top: 10px;">
+                                <button style="margin-right: 10px; padding: 5px 15px; background: #1890ff; color: white; border: none; border-radius: 4px; font-size: 12px;">合</button>
+                                <button style="margin-right: 10px; padding: 5px 15px; background: #f0f0f0; color: #666; border: none; border-radius: 4px; font-size: 12px;">X轴</button>
+                                <button style="margin-right: 10px; padding: 5px 15px; background: #f0f0f0; color: #666; border: none; border-radius: 4px; font-size: 12px;">Y轴</button>
+                            </div>
+                        </div>
+                        
+                        <!-- 累计位移区间 -->
+                        <div style="margin-bottom: 15px;">
+                            <span style="font-weight: bold; font-size: 14px; margin-bottom: 10px; display: block;">累计位移区间</span>
+                            <div style="margin-top: 10px; font-size: 12px;">
+                                <label style="margin-right: 10px;">最小值：</label>
+                                <input type="text" style="width: 60px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; margin-right: 5px;">
+                                <label style="margin-right: 5px;">~</label>
+                                <label style="margin-right: 10px;">最大值：</label>
+                                <input type="text" style="width: 60px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; margin-right: 5px;">
+                                <span>mm</span>
+                            </div>
+                        </div>
+                        
+                        <!-- 相对位移区间 -->
+                        <div style="margin-bottom: 15px;">
+                            <span style="font-weight: bold; font-size: 14px; margin-bottom: 10px; display: block;">相对位移区间</span>
+                            <div style="margin-top: 10px; font-size: 12px;">
+                                <label style="margin-right: 10px;">最小值：</label>
+                                <input type="text" style="width: 60px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; margin-right: 5px;">
+                                <label style="margin-right: 5px;">~</label>
+                                <label style="margin-right: 10px;">最大值：</label>
+                                <input type="text" style="width: 60px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; margin-right: 5px;">
+                                <span>mm</span>
+                            </div>
+                        </div>
+                        
+                        <!-- 功能 -->
+                        <div>
+                            <span style="font-weight: bold; font-size: 14px; margin-bottom: 10px; display: block;">功能</span>
+                            <div style="margin-top: 10px; margin-bottom: 10px; font-size: 12px;">
+                                <label style="margin-right: 20px;"><input type="checkbox" checked> 累计位移</label>
+                                <label style="margin-right: 20px;"><input type="checkbox" checked> 相对位移</label>
+                            </div>
+                            <button style="padding: 5px 15px; background: #f0f0f0; color: #666; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+                                <span style="margin-right: 5px;">导出图</span>
+                            </button>
+                        </div>
+                    </div>
+                 </div>
+                </div>
+                
+
+
+                <!-- 地层运动轨迹选项卡内容 -->
+                <div class="tab-content" id="tab-trajectory">
+                    <div class="tab-content-inner" style="display: flex; gap: 20px;">
+                    <!-- 数据表格 -->
+                    <div class="data-table-container" style="flex: 1; min-width: 300px; background: #fff; border-radius: 8px; border: 1px solid #eee; padding: 15px;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>采集时间</th>
+                                    <th>角度(°)</th>
+                                    <th>位移(mm)</th>
+                                    <th>X方向位移(mm)</th>
+                                    <th>Y方向位移(mm)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- 示例数据 -->
+                                <tr>
+                                    <td>2026-01-20 15:29:59</td>
+                                    <td>176.159</td>
+                                    <td>2.627</td>
+                                    <td>-2.598</td>
+                                    <td>-0.142</td>
+                                </tr>
+                                <tr>
+                                    <td>2026-01-19 15:29:59</td>
+                                    <td>169.104</td>
+                                    <td>3.555</td>
+                                    <td>-3.489</td>
+                                    <td>-0.725</td>
+                                </tr>
+                                <tr>
+                                    <td>2026-01-18 15:29:59</td>
+                                    <td>180.117</td>
+                                    <td>2.468</td>
+                                    <td>-2.468</td>
+                                    <td>-0.005</td>
+                                </tr>
+                                <tr>
+                                    <td>2026-01-17 15:29:59</td>
+                                    <td>195.557</td>
+                                    <td>2.735</td>
+                                    <td>-2.644</td>
+                                    <td>0.729</td>
+                                </tr>
+                                <tr>
+                                    <td>2026-01-16 15:29:59</td>
+                                    <td>177.49</td>
+                                    <td>2.443</td>
+                                    <td>-2.428</td>
+                                    <td>-0.111</td>
+                                </tr>
+                                <tr>
+                                    <td>2026-01-15 15:29:59</td>
+                                    <td>185.656</td>
+                                    <td>3.308</td>
+                                    <td>-3.287</td>
+                                    <td>0.312</td>
+                                </tr>
+                                <tr>
+                                    <td>2026-01-14 15:29:59</td>
+                                    <td>160.153</td>
+                                    <td>2.58</td>
+                                    <td>-2.421</td>
+                                    <td>-0.879</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- 雷达图 -->
+                    <div class="trajectory-chart-container" style="flex: 0%; min-width: 300px; background: #fff; border-radius: 8px; border: 1px solid #eee;">
+                        <div class="chart-header">
+                                <div class="chart-title">
+                                    <select class="time-selector">
+                                        <option>2026-01-20 15:29:59</option>
+                                    </select>
+                                </div>
+                            <button class="export-btn">导出图</button>
+                        </div>
+                        <div id="trajectory-subtitle" style="padding: 10px 15px; font-size: 12px; color: #333; font-weight: bold; background: #f0f7ff; border-bottom: 1px solid #e0e0e0;">SJ45 - 地层运动轨迹图</div>
+                        <div id="trajectory-chart" style="width: 100%; height: 650px; padding: 15px;"></div>
+                    </div>
+                    
+                    <!-- 控制面板 -->
+                    <div class="control-panel" style=" min-width:45px; background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
+                        <!-- 时间段选择 -->
+                        <div style="margin-bottom: 15px;">
+                            <div style="margin-bottom: 10px;">
+                                <label style="margin-right: 10px;">时间段：</label>
+                                <span style="margin-right: 15px; font-size: 12px;">日均</span>
+                                <span style="margin-right: 10px; font-size: 12px;">小时</span>
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <button style="margin-right: 10px; padding: 5px 10px; background: #1890ff; color: white; border: none; border-radius: 4px; font-size: 12px;">近7天</button>
+                                <button style="margin-right: 10px; padding: 5px 10px; background: #f0f0f0; color: #666; border: none; border-radius: 4px; font-size: 12px;">近30天</button>
+                                <button style="margin-right: 10px; padding: 5px 10px; background: #f0f0f0; color: #666; border: none; border-radius: 4px; font-size: 12px;">近90天</button>
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <input type="date" style="margin-right: 10px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;" value="2026-01-14">
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <input type="date" style="margin-right: 10px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;" value="2026-01-20">
+                            </div>
+                        </div>
+                        
+                        <!-- 功能 -->
+                        <div>
+                            <span style="font-weight: bold; font-size: 14px; margin-bottom: 10px; display: block;">功能</span>
+                            <div style="margin-top: 10px; margin-bottom: 10px; font-size: 12px;">
+                                <label style="margin-right: 20px;"><input type="checkbox" checked> 轨迹点</label>
+                                <label style="margin-right: 20px;"><input type="checkbox" checked> 起始点</label>
+                                <label style="margin-right: 20px;"><input type="checkbox" checked> 结束点</label>
+                            </div>
+                            <button style="padding: 5px 15px; background: #f0f0f0; color: #666; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+                                <span style="margin-right: 5px;">导出图</span>
+                            </button>
+                            <button style="margin-left: 10px; padding: 5px 15px; background: #52c41a; color: white; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;" onclick="analysisModule.initTrajectoryChart()">
+                                <span style="margin-right: 5px;">刷新图表</span>
+                            </button>
+                        </div>
+                    </div>
+                    </div>
+                </div>
+                
+                <!-- 节点温度选项卡内容 -->
+                <div class="tab-content" id="tab-nodetemp">
+                    <!-- 节点温度图 -->
+                    <div class="data-points-charts">
+                        <div class="data-point-chart">
+                            <div class="chart-header">
+                                <div class="chart-title">
+                                    <select class="time-selector">
+                                        <option>2026-01-20 15:29:59</option>
+                                    </select>
+                                </div>
+                                <button class="export-btn">导出图</button>
+                            </div>
+                            <div id="nodetemp-subtitle" style="padding: 10px 15px; font-size: 12px; color: #333; font-weight: bold; background: #f0f7ff; border-bottom: 1px solid #e0e0e0;">SJ45 - 节点温度图</div>
+                            <div id="nodetemp-chart" style="width: 100%; height: 300px; padding: 15px;"></div>
+                        </div>
+                    
+                    
+                    <!-- 控制面板 -->
+                    <div style="margin: 20px 0; background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
+                        <!-- 时间段选择 -->
+                        <div style="margin-bottom: 15px;">
+                            <div style="margin-bottom: 10px;">
+                                <label style="margin-right: 10px;">时间段：</label>
+                                <span style="margin-right: 15px; font-size: 12px;">日均</span>
+                                <span style="margin-right: 10px; font-size: 12px;">小时</span>
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <button style="margin-right: 10px; padding: 5px 10px; background: #1890ff; color: white; border: none; border-radius: 4px; font-size: 12px;">近7天</button>
+                                <button style="margin-right: 10px; padding: 5px 10px; background: #f0f0f0; color: #666; border: none; border-radius: 4px; font-size: 12px;">近30天</button>
+                                <button style="margin-right: 10px; padding: 5px 10px; background: #f0f0f0; color: #666; border: none; border-radius: 4px; font-size: 12px;">近90天</button>
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <input type="date" style="margin-right: 10px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;" value="2026-01-14">
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <input type="date" style="margin-right: 10px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;" value="2026-01-20">
+                            </div>
+                        </div>
+                        
+                        <!-- 功能 -->
+                        <div>
+                            <span style="font-weight: bold; font-size: 14px; margin-bottom: 10px; display: block;">功能</span>
+                            <div style="margin-top: 10px; margin-bottom: 10px; font-size: 12px;">
+                                <label style="margin-right: 20px;"><input type="checkbox" checked> 温度数据</label>
+                            </div>
+                            <button style="padding: 5px 15px; background: #f0f0f0; color: #666; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+                                <span style="margin-right: 5px;">导出图</span>
+                            </button>
+                        </div>
+                    </div>
+                    </div>
+                </div>
+                
+                <!-- 温度场选项卡内容 -->
+                <div class="tab-content" id="tab-tempfield">
+                    <!-- 温度场热力图 -->
+                    <div class="data-points-charts">
+                        <div class="data-point-chart">
+                            <div class="chart-header">
+                                <div class="chart-title">
+                                    <select class="time-selector">
+                                        <option>2026-01-20 15:29:59</option>
+                                    </select>
+                                </div>
+                                <button class="export-btn">导出图</button>
+                            </div>
+                            <div id="tempfield-subtitle" style="padding: 10px 15px; font-size: 12px; color: #333; font-weight: bold; background: #f0f7ff; border-bottom: 1px solid #e0e0e0;">SJ45 - 温度场热力图</div>
+                            <div id="tempfield-chart" style="width: 100%; height: 500px; padding: 15px;"></div>
+                        </div>
+                    </div>
+                    
+            
+                </div>
+                
+                
+                <!-- 切线角选项卡内容 -->
+                <div class="tab-content" id="tab-angle">
+                    <!-- 切线角数据图 -->
+                    <div class="data-points-charts">
+                        <div class="data-point-chart">
+                            <div class="chart-header">
+                                <div class="chart-title">
+                                    <select class="time-selector">
+                                        <option>2026-01-20 15:29:59</option>
+                                    </select>
+                                </div>
+                                <button class="export-btn">导出图</button>
+                            </div>
+                            <div id="angle-subtitle" style="padding: 10px 15px; font-size: 12px; color: #333; font-weight: bold; background: #f0f7ff; border-bottom: 1px solid #e0e0e0;">SJ45 - 切线角数据图</div>
+                            <div id="angle-chart" style="width: 100%; height: 300px; padding: 15px;"></div>
+                        </div>
+                    
+                    
+                    <!-- 控制面板 -->
+                    <div style="margin: 20px 0; background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
+                        <!-- 时间段选择 -->
+                        <div style="margin-bottom: 15px;">
+                            <div style="margin-bottom: 10px;">
+                                <label style="margin-right: 10px;">时间段：</label>
+                                <span style="margin-right: 15px; font-size: 12px;">日均</span>
+                                <span style="margin-right: 10px; font-size: 12px;">小时</span>
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <button style="margin-right: 10px; padding: 5px 10px; background: #1890ff; color: white; border: none; border-radius: 4px; font-size: 12px;">近7天</button>
+                                <button style="margin-right: 10px; padding: 5px 10px; background: #f0f0f0; color: #666; border: none; border-radius: 4px; font-size: 12px;">近30天</button>
+                                <button style="margin-right: 10px; padding: 5px 10px; background: #f0f0f0; color: #666; border: none; border-radius: 4px; font-size: 12px;">近90天</button>
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <input type="date" style="margin-right: 10px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;" value="2026-01-14">
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <input type="date" style="margin-right: 10px; padding: 5px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;" value="2026-01-20">
+                            </div>
+                        </div>
+                        
+                        <!-- 功能 -->
+                        <div>
+                            <span style="font-weight: bold; font-size: 14px; margin-bottom: 10px; display: block;">功能</span>
+                            <div style="margin-top: 10px; margin-bottom: 10px; font-size: 12px;">
+                                <label style="margin-right: 20px;"><input type="checkbox" checked> 切线角数据</label>
+                            </div>
+                            <button style="padding: 5px 15px; background: #f0f0f0; color: #666; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+                                <span style="margin-right: 5px;">导出图</span>
+                            </button>
+                        </div>
+                    </div>
+                    </div>
+                </div>
+                
+
+
+    <!-- 导出面板模态框 -->
+    <div id="export-panel" class="modal-overlay">
+        <div class="modal-content" style="width: 600px;">
+            <div class="export-content-box">
+                <div class="modal-header" style="border-bottom:1px solid #eee; margin-bottom:15px; padding-bottom:10px;">
+                    <h4 style="margin:0; color:#1c3d90; display:flex; align-items:center; gap:8px;">
+                        <span>📋</span> 选择需要导出的数据指标
+                    </h4>
+                    <div style="display:flex; gap:10px;">
+                        <button class="pager-btn" onclick="analysisModule.toggleAllExport(true)">全选</button>
+                        <button class="pager-btn" onclick="analysisModule.toggleAllExport(false)">清空</button>
+                    </div>
+                </div>
+
+                <div class="export-grid" id="export-metric-list" style="max-height: 400px; overflow-y: auto; margin-bottom: 20px;">
+                </div>
+
+                <div class="export-footer" style="display:flex; justify-content:flex-end; gap:10px;">
+                    <button class="map-btn" style="background:#f5f7fa; color:#333; border:1px solid #dcdfe6;" onclick="document.getElementById('export-panel').style.display='none'">取消</button>
+                    <button class="map-btn" style="background:#1c3d90; color:#fff; font-weight:bold; border:none; padding:0 30px;" onclick="analysisModule.doExport()">确认导出 Excel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
