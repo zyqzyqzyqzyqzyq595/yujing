@@ -274,13 +274,22 @@ window.thresholdModule = {
         window.thresholdModule.renderCards();
     },
 
-    toggleMode: (mode) => {
-        window.thresholdModule.state.warningType = mode;
-        if (mode === 'auto') window.thresholdModule.state.autoWarningMode = 'single';
-        window.thresholdModule.renderLeftTabs();
-        window.thresholdModule.renderControls();
-        window.thresholdModule.renderCards();
-    },
+toggleMode: (mode) => {
+    window.thresholdModule.state.warningType = mode;
+    if (mode === 'auto') window.thresholdModule.state.autoWarningMode = 'single';
+    window.thresholdModule.renderLeftTabs();
+    window.thresholdModule.renderControls();
+    window.thresholdModule.renderCards();
+
+    // 添加白色闪烁动画（仅下方内容区）
+    const tabContent = document.querySelector('#threshold-analysis-modal .tab-content-container');
+    if (tabContent) {
+        tabContent.classList.add('fade-white');
+        setTimeout(() => {
+            tabContent.classList.remove('fade-white');
+        }, 200);
+    }
+},
 
     // 渲染标题栏右侧的模式切换按钮
     renderModeSwitch: () => {

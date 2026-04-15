@@ -305,14 +305,13 @@
   cursor: pointer;
 }
 
-/* 弹窗主体 - 宽高和原阈值设置区域比例适配 */
 .threshold-modal-container {
   position: relative;
   width: 1320px;
   max-width: 90vw;
-  height: auto;               /* 改为自适应高度 */
-  min-height: 500px;          /* 保证最小高度，避免过小 */
-  max-height: 85vh;           /* 限制最大高度，超出滚动 */
+  height: 620px;          /* 固定高度，保证两种模式一致 */
+  min-height: 500px;      /* 保留最小高度，但实际会被固定高度覆盖 */
+  max-height: 85vh;       /* 限制最大高度，超出滚动 */
   background: #fff;
   border-radius: 24px;
   box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
@@ -990,4 +989,32 @@
 /* 关闭按钮推到最右侧 */
 .threshold-modal-header .modal-close-new {
     margin-left: auto !important;
+}
+
+/* 弹窗切换闪黑动画 */
+.threshold-modal-container.flash-dark {
+    animation: flashDark 0.3s ease-out;
+}
+@keyframes flashDark {
+    0% {
+        background-color: rgba(0, 0, 0, 0);
+    }
+    30% {
+        background-color: rgba(0, 0, 0, 0.25);
+    }
+    100% {
+        background-color: rgba(0, 0, 0, 0);
+    }
+}
+
+/* =========================================================
+   预警设置弹窗 - 内容区白色闪烁切换动画
+   ========================================================= */
+.tab-content-container.fade-white {
+    animation: flashWhite 0.2s ease-out;
+}
+@keyframes flashWhite {
+    0% { background-color: #ffffff; }
+    50% { background-color: #f0f2f5; }
+    100% { background-color: #ffffff; }
 }
