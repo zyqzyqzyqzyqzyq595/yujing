@@ -32,21 +32,22 @@ window.thresholdModule = {
     state: {
         isInitialized: false,
         activeTab: 'GNSS',
-        warningType: 'threshold',      // 默认阈值预警
+        warningType: 'threshold',
         autoWarningMode: 'single',
         paramType: '位移量',
         targetLevel: 'global',
         targetValue: '',
-        selectedRegion: '北帮',
-        selectedLine: '全部监测线',
+        selectedRegion: '',
+        selectedLine: '',
+        selectedDeviceType: '',
         selectedPoint: '',
         multiMetrics: { level1: '表面加速度', level2: '表面加速度', level3: '表面速度', level4: '表面速度' },
         waterSubType: '水位计'
     },
 
-    // 根据左侧标签获取对应类型的在线设备列表
+    // ================= 原有设备列表获取（阈值预警使用） =================
     getDevicesByTab: (tabName) => {
-        if (!window.mapModule || !window.mapModule.pMeta) return [];
+        if (!window.mapModule || !window.mapModule.pMeta) return[];
         const typeMap = {
             'GNSS': 'GNSS',
             '雷达监测': 'RADAR',
@@ -59,22 +60,23 @@ window.thresholdModule = {
             '振动监测': 'VIB'
         };
         const targetType = typeMap[tabName];
-        if (!targetType) return [];
+        if (!targetType) return[];
         return Object.values(window.mapModule.pMeta)
             .filter(meta => meta.type === targetType && meta.isOnline)
             .map(meta => meta.deviceId);
     },
 
+    // ================= 参数配置（完整保留） =================
     paramConfig: {
         '裂缝监测': {
-            categories: [
-                { name: '宽度变化量', components: [{ label: '宽度累计变化量', defaultVal: 200 }], unit: 'mm' },
-                { name: '加速度', components: [
+            categories:[
+                { name: '宽度变化量', components:[{ label: '宽度累计变化量', defaultVal: 200 }], unit: 'mm' },
+                { name: '加速度', components:[
                     { label: 'x方向加速度', defaultVal: 200 },
                     { label: 'y方向加速度', defaultVal: 200 },
                     { label: 'z方向加速度', defaultVal: 200 }
                 ], unit: 'mm/h²' },
-                { name: '倾角', components: [
+                { name: '倾角', components:[
                     { label: 'x方向倾角', defaultVal: 200 },
                     { label: 'y方向倾角', defaultVal: 200 },
                     { label: 'z方向倾角', defaultVal: 200 }
@@ -82,56 +84,56 @@ window.thresholdModule = {
             ]
         },
         '煤自燃监测': {
-            categories: [
+            categories:[
                 { name: '温度', components: [{ label: '温度', defaultVal: 200 }], unit: '℃' },
-                { name: '一氧化碳浓度', components: [{ label: '一氧化碳浓度', defaultVal: 200 }], unit: 'PPm' },
+                { name: '一氧化碳浓度', components:[{ label: '一氧化碳浓度', defaultVal: 200 }], unit: 'PPm' },
                 { name: '氧气浓度', components: [{ label: '氧气浓度', defaultVal: 200 }], unit: '%' }
             ]
         },
         '降雨监测': {
-            categories: [
+            categories:[
                 { name: '累积降雨量', components: [{ label: '累积降雨量', defaultVal: 200 }], unit: 'mm' },
-                { name: '实时降雨量', components: [{ label: '实时降雨量', defaultVal: 200 }], unit: 'mm' }
+                { name: '实时降雨量', components:[{ label: '实时降雨量', defaultVal: 200 }], unit: 'mm' }
             ]
         },
         '地下水监测': {
             categories: {
-                '水位计': [
-                    { name: '水面高程', components: [{ label: '水面高程', defaultVal: 200 }], unit: 'm' },
-                    { name: '空管长度', components: [{ label: '空管长度', defaultVal: 200 }], unit: 'm' }
+                '水位计':[
+                    { name: '水面高程', components:[{ label: '水面高程', defaultVal: 200 }], unit: 'm' },
+                    { name: '空管长度', components:[{ label: '空管长度', defaultVal: 200 }], unit: 'm' }
                 ],
                 '流量计': [
-                    { name: '流量', components: [{ label: '流量', defaultVal: 200 }], unit: 'm²/h' },
-                    { name: '水位', components: [{ label: '水位', defaultVal: 200 }], unit: 'm' },
+                    { name: '流量', components:[{ label: '流量', defaultVal: 200 }], unit: 'm²/h' },
+                    { name: '水位', components:[{ label: '水位', defaultVal: 200 }], unit: 'm' },
                     { name: '空隙水压', components: [{ label: '空隙水压', defaultVal: 200 }], unit: 'kPa' },
-                    { name: '温度', components: [{ label: '温度', defaultVal: 200 }], unit: '℃' }
+                    { name: '温度', components:[{ label: '温度', defaultVal: 200 }], unit: '℃' }
                 ]
             }
         },
         '振动监测': {
             categories: [
-                { name: '速度', components: [
+                { name: '速度', components:[
                     { label: 'X速度', defaultVal: 200 },
                     { label: 'Y速度', defaultVal: 200 },
                     { label: 'H速度', defaultVal: 200 },
                     { label: 'XY速度', defaultVal: 200 },
                     { label: 'XYH速度', defaultVal: 200 }
                 ], unit: 'mm/h' },
-                { name: '位移', components: [
+                { name: '位移', components:[
                     { label: 'X位移', defaultVal: 200 },
                     { label: 'Y位移', defaultVal: 200 },
                     { label: 'H位移', defaultVal: 200 },
                     { label: 'XY位移', defaultVal: 200 },
                     { label: 'XYH位移', defaultVal: 200 }
                 ], unit: 'mm' },
-                { name: '累积位移', components: [
+                { name: '累积位移', components:[
                     { label: 'X累积位移', defaultVal: 200 },
                     { label: 'Y累积位移', defaultVal: 200 },
                     { label: 'H累积位移', defaultVal: 200 },
                     { label: 'XY累积位移', defaultVal: 200 },
                     { label: 'XYH累积位移', defaultVal: 200 }
                 ], unit: 'mm' },
-                { name: '加速度', components: [
+                { name: '加速度', components:[
                     { label: 'X加速度', defaultVal: 200 },
                     { label: 'Y加速度', defaultVal: 200 },
                     { label: 'H加速度', defaultVal: 200 }
@@ -141,54 +143,283 @@ window.thresholdModule = {
         }
     },
 
+    // ================= 联动数据源 =================
     getAllRegions: () => {
-        if (window.mapFilterModule && window.mapFilterModule.selectedRegions) {
-            const regs = window.mapFilterModule.selectedRegions.filter(r => r !== '全部');
-            if (regs.length === 0) return ['北帮', '南帮', '东帮', '西帮', '中央区'];
-            return regs;
-        }
-        return ['北帮', '南帮', '东帮', '西帮', '中央区'];
+        return['北帮', '南帮', '东帮', '西帮', '中央区'];
     },
 
     getAllLines: () => {
-        if (window.connectionModule && window.connectionModule.detectionLines) {
-            return ['全部监测线', ...window.connectionModule.detectionLines.map(l => l.name)];
-        }
-        return ['全部监测线', '1号线', '2号线', '3号线', '4号线'];
+        return['1号线', '2号线', '3号线', '4号线', '中央参考线'];
     },
 
     getLinesByRegion: (region) => {
-        const regionToLine = { '北帮': '1号线', '南帮': '2号线', '东帮': '3号线', '西帮': '4号线', '中央区': null };
+        const regionToLine = {
+            '北帮': '1号线',
+            '南帮': '2号线',
+            '东帮': '3号线',
+            '西帮': '4号线',
+            '中央区': '中央参考线'
+        };
         const line = regionToLine[region];
-        if (line) return [line];
-        return ['全部监测线'];
+        return line ? [line] :[];
     },
 
-    getPointsByRegionAndLine: (region, line) => {
-        if (!window.mapModule || !window.mapModule.pMeta) return [];
-        const points = [];
-        Object.values(window.mapModule.pMeta).forEach(meta => {
-            if (!meta.isOnline) return;
-            if (meta.region !== region) return;
-            if (line !== '全部监测线') {
-                if (meta.type === 'GNSS' && meta.isOnDetectionLine && meta.deviceId.includes(line.replace('号线', ''))) {
-                    points.push({ id: meta.deviceId, label: meta.deviceId });
-                }
+    getAllDeviceTypes: () => {
+        return[
+            'GNSS监测', '深部位移监测', '雷达监测', '裂缝监测', '煤自燃监测',
+            '降雨监测', '地下水监测', '地下应力监测', '爆破震动监测'
+        ];
+    },
+
+    getPointsByRegionAndLineAndDeviceType: (region, line, deviceType) => {
+        const basePoints = {
+            'GNSS监测':['GNSS01', 'GNSS02', 'GNSS03'],
+            '深部位移监测':['DEEP01', 'DEEP02', 'DEEP03'],
+            '雷达监测':['RADAR01', 'RADAR02', 'RADAR03'],
+            '裂缝监测':['CRACK01', 'CRACK02', 'CRACK03'],
+            '煤自燃监测':['FIRE01', 'FIRE02', 'FIRE03'],
+            '降雨监测':['RAIN01', 'RAIN02', 'RAIN03'],
+            '地下水监测': ['WATER01', 'WATER02', 'WATER03'],
+            '地下应力监测': ['STRESS01', 'STRESS02', 'STRESS03'],
+            '爆破震动监测': ['VIB01', 'VIB02', 'VIB03']
+        };
+        let points = basePoints[deviceType] || ['DEMO01'];
+        let suffix = '';
+        if (region === '北帮' && line === '1号线') suffix = '';
+        else if (region === '南帮' && line === '2号线') suffix = '_南';
+        else if (region === '东帮' && line === '3号线') suffix = '_东';
+        else if (region === '西帮' && line === '4号线') suffix = '_西';
+        else if (region === '中央区' && line === '中央参考线') suffix = '_中';
+        else suffix = `_${region.substring(0,1)}_${line.substring(0,1)}`;
+        let finalPoints = points.map(p => p + suffix);
+        if (finalPoints.length === 0) finalPoints = [`默认监测点_${region}_${line}`];
+        return finalPoints;
+    },
+
+    // ================= 单选组件（单源预警专用：无全部按钮、单选、只读防键盘弹出） =================
+    renderSearchableSingleSelect: (options, inputId, dropdownId, placeholder, onSelect, defaultSelected = null) => {
+        const container = document.createElement('div');
+        container.className = 'searchable-single-select';
+        container.style.position = 'relative';
+        container.innerHTML = `
+            <div class="single-select-input-wrapper" style="position:relative; width:100%;">
+                <input type="text" id="${inputId}" class="breathing-select single-select-input" placeholder="${placeholder}" autocomplete="off" style="width:100%; box-sizing:border-box; padding-right:24px; cursor:pointer;" readonly>
+                <span class="single-select-arrow" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); pointer-events:none; font-size:12px; color:#999;">▼</span>
+            </div>
+            <div id="${dropdownId}" class="single-select-dropdown" style="display: none; position: absolute; top: 100%; left: 0; width: 100%; z-index: 100000; background: #fff; border: 1px solid #1c3d90; border-radius: 4px; box-shadow: 0 6px 16px rgba(0,0,0,0.2); margin-top: 4px; overflow: hidden;">
+                <div class="single-select-options" style="max-height: 240px; overflow-y: auto;"></div>
+            </div>
+        `;
+        const input = container.querySelector(`#${inputId}`);
+        const dropdown = container.querySelector(`#${dropdownId}`);
+        const optionsContainer = dropdown.querySelector('.single-select-options');
+
+        let currentSelected = defaultSelected;
+
+        const updateInputDisplay = () => {
+            if (!currentSelected) {
+                input.value = '';
+                input.style.color = '#999';
+                input.placeholder = placeholder;
             } else {
-                points.push({ id: meta.deviceId, label: meta.deviceId });
+                const opt = options.find(o => o.value === currentSelected);
+                input.value = opt ? opt.label : currentSelected;
+                input.style.color = '#333';
+                input.placeholder = '';
+            }
+        };
+
+        const renderOptions = () => {
+            optionsContainer.innerHTML = options.map(opt => `
+                <div class="single-select-option" data-value="${opt.value}" style="display:flex; align-items:center; gap:8px; padding:8px 12px; cursor:pointer; ${currentSelected === opt.value ? 'background:#e0e7ff; color:#1e3a8a; font-weight:bold;' : 'color:#444;'}">
+                    <span style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${opt.label}">${opt.label}</span>
+                </div>
+            `).join('');
+
+            optionsContainer.querySelectorAll('.single-select-option').forEach(optDiv => {
+                optDiv.addEventListener('mouseenter', () => { if(currentSelected !== optDiv.dataset.value) optDiv.style.background = '#f0f7ff' });
+                optDiv.addEventListener('mouseleave', () => { if(currentSelected !== optDiv.dataset.value) optDiv.style.background = 'transparent' });
+
+                optDiv.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    currentSelected = optDiv.dataset.value;
+                    updateInputDisplay();
+                    toggleDropdown(false);
+                    if (onSelect) onSelect(currentSelected);
+                });
+            });
+        };
+
+        const toggleDropdown = (show) => {
+            if (show) {
+                document.querySelectorAll('.single-select-dropdown, .multi-select-dropdown').forEach(el => {
+                    if(el.id !== dropdownId) el.style.display = 'none';
+                });
+                dropdown.style.display = 'block';
+                renderOptions();
+            } else {
+                dropdown.style.display = 'none';
+            }
+        };
+
+        document.addEventListener('click', (e) => {
+            if (!container.contains(e.target)) {
+                toggleDropdown(false);
             }
         });
-        const unique = [];
-        const ids = new Set();
-        points.forEach(p => {
-            if (!ids.has(p.id)) {
-                ids.add(p.id);
-                unique.push(p);
-            }
+
+        input.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleDropdown(dropdown.style.display !== 'block');
         });
-        return unique;
+
+        updateInputDisplay();
+
+        const setSelected = (val) => {
+            currentSelected = val;
+            updateInputDisplay();
+            if (dropdown.style.display === 'block') renderOptions();
+        };
+
+        return { container, setSelected, getSelected: () => currentSelected };
     },
 
+    // ================= 可搜索多选组件（阈值预警/多源预警共用） =================
+    renderSearchableMultiSelect: (options, inputId, dropdownId, placeholder, onSelect, defaultSelected =[]) => {
+        const container = document.createElement('div');
+        container.className = 'searchable-multi-select';
+        container.style.position = 'relative';
+        container.innerHTML = `
+            <div class="multi-select-input-wrapper" style="position:relative; width:100%;">
+                <input type="text" id="${inputId}" class="breathing-select multi-select-input" placeholder="${placeholder}" autocomplete="off" style="width:100%; box-sizing:border-box; padding-right:24px; cursor:pointer;" readonly>
+                <span class="multi-select-arrow" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); pointer-events:none; font-size:12px; color:#999;">▼</span>
+            </div>
+            <div id="${dropdownId}" class="multi-select-dropdown" style="display: none; position: absolute; top: 100%; left: 0; width: 100%; z-index: 100000; background: #fff; border: 1px solid #1c3d90; border-radius: 4px; box-shadow: 0 6px 16px rgba(0,0,0,0.2); margin-top: 4px; overflow: hidden;">
+                <div class="multi-select-options-header" style="border-bottom: 1px solid #eee;">
+                    <div class="multi-select-all-btn" style="display: flex; align-items: center; justify-content: flex-start; padding: 8px 12px; gap: 8px; background: #e0e7ff; color: #1e3a8a; cursor: pointer; transition: background 0.2s;">
+                        <input type="checkbox" style="pointer-events:none; margin:0;">
+                        <span style="font-size:13px; font-weight:bold;">全部</span>
+                    </div>
+                </div>
+                <div class="multi-select-options" style="max-height: 240px; overflow-y: auto;"></div>
+            </div>
+        `;
+        const input = container.querySelector(`#${inputId}`);
+        const dropdown = container.querySelector(`#${dropdownId}`);
+        const optionsContainer = dropdown.querySelector('.multi-select-options');
+        const allBtn = dropdown.querySelector('.multi-select-all-btn');
+
+        let currentSelected = [...defaultSelected];
+
+        const updateInputDisplay = () => {
+            if (currentSelected.length === 0) {
+                input.value = '';
+                input.style.color = '#999';
+                input.placeholder = placeholder;
+            } else {
+                input.value = currentSelected.map(v => {
+                    const opt = options.find(o => o.value === v);
+                    return opt ? opt.label : v;
+                }).join('、');
+                input.style.color = '#333';
+                input.placeholder = '';
+            }
+        };
+
+        const updateAllBtnState = () => {
+            const allSelected = options.length > 0 && options.every(opt => currentSelected.includes(opt.value));
+            const cb = allBtn.querySelector('input');
+            if(cb) cb.checked = allSelected;
+            if (allSelected) {
+                allBtn.style.backgroundColor = '#c7d2fe';
+            } else {
+                allBtn.style.backgroundColor = '#e0e7ff';
+            }
+        };
+
+        const renderOptions = () => {
+            optionsContainer.innerHTML = options.map(opt => `
+                <div class="multi-select-option" data-value="${opt.value}" style="display:flex; align-items:center; gap:8px; padding:8px 12px; cursor:pointer;">
+                    <input type="checkbox" ${currentSelected.includes(opt.value) ? 'checked' : ''} style="pointer-events:none; margin:0;">
+                    <span style="font-size:13px; color:#444;">${opt.label}</span>
+                </div>
+            `).join('');
+
+            optionsContainer.querySelectorAll('.multi-select-option').forEach(optDiv => {
+                optDiv.addEventListener('mouseenter', () => optDiv.style.background = '#f0f7ff');
+                optDiv.addEventListener('mouseleave', () => optDiv.style.background = 'transparent');
+
+                optDiv.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const value = optDiv.dataset.value;
+                    const cb = optDiv.querySelector('input');
+                    if (currentSelected.includes(value)) {
+                        currentSelected = currentSelected.filter(v => v !== value);
+                        cb.checked = false;
+                    } else {
+                        currentSelected.push(value);
+                        cb.checked = true;
+                    }
+                    updateInputDisplay();
+                    updateAllBtnState();
+                    if (onSelect) onSelect(currentSelected);
+                });
+            });
+            updateAllBtnState();
+        };
+
+        const toggleAll = () => {
+            const allSelected = options.length > 0 && options.every(opt => currentSelected.includes(opt.value));
+            if (allSelected) {
+                currentSelected =[];
+            } else {
+                currentSelected = options.map(opt => opt.value);
+            }
+            updateInputDisplay();
+            renderOptions();
+            if (onSelect) onSelect(currentSelected);
+        };
+
+        allBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleAll();
+        });
+
+        const toggleDropdown = (show) => {
+            if (show) {
+                document.querySelectorAll('.single-select-dropdown, .multi-select-dropdown').forEach(el => {
+                    if(el.id !== dropdownId) el.style.display = 'none';
+                });
+                dropdown.style.display = 'block';
+                renderOptions();
+            } else {
+                dropdown.style.display = 'none';
+            }
+        };
+
+        document.addEventListener('click', (e) => {
+            if (!container.contains(e.target)) {
+                toggleDropdown(false);
+            }
+        });
+
+        input.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleDropdown(dropdown.style.display !== 'block');
+        });
+
+        updateInputDisplay();
+
+        const setSelected = (values) => {
+            currentSelected = [...values];
+            updateInputDisplay();
+            if (dropdown.style.display === 'block') renderOptions();
+        };
+
+        return { container, setSelected, getSelected: () => [...currentSelected] };
+    },
+
+    // ================= 左侧标签渲染 =================
     renderLeftTabs: () => {
         const container = document.getElementById('threshold-left-tabs');
         if (!container) return;
@@ -198,7 +429,6 @@ window.thresholdModule = {
                 <div class="tab-btn" data-auto-mode="multi" onclick="window.thresholdModule.switchAutoMode('multi')"><span>多源预警</span></div>
             `;
         } else {
-            // 阈值预警模式：按新顺序和新文字显示
             container.innerHTML = `
                 <div class="tab-btn ${window.thresholdModule.state.activeTab === 'GNSS' ? 'active' : ''}" id="tab-GNSS" onclick="window.thresholdModule.switchTab('GNSS')"><span>GNSS监测</span></div>
                 <div class="tab-btn ${window.thresholdModule.state.activeTab === '深部位移' ? 'active' : ''}" id="tab-深部位移" onclick="window.thresholdModule.switchTab('深部位移')"><span>深部位移监测</span></div>
@@ -233,13 +463,16 @@ window.thresholdModule = {
     },
 
     open: () => {
-        // 每次打开弹窗时，强制重置为阈值预警模式，并重置左侧标签为 GNSS
         window.thresholdModule.state.warningType = 'threshold';
         window.thresholdModule.state.autoWarningMode = 'single';
         window.thresholdModule.state.activeTab = 'GNSS';
         window.thresholdModule.state.paramType = '位移量';
         window.thresholdModule.state.targetLevel = 'global';
         window.thresholdModule.state.targetValue = '';
+        window.thresholdModule.state.selectedRegion = '';
+        window.thresholdModule.state.selectedLine = '';
+        window.thresholdModule.state.selectedDeviceType = '';
+        window.thresholdModule.state.selectedPoint = '';
 
         const modal = document.getElementById('threshold-analysis-modal');
         if (modal) {
@@ -274,24 +507,22 @@ window.thresholdModule = {
         window.thresholdModule.renderCards();
     },
 
-toggleMode: (mode) => {
-    window.thresholdModule.state.warningType = mode;
-    if (mode === 'auto') window.thresholdModule.state.autoWarningMode = 'single';
-    window.thresholdModule.renderLeftTabs();
-    window.thresholdModule.renderControls();
-    window.thresholdModule.renderCards();
+    toggleMode: (mode) => {
+        window.thresholdModule.state.warningType = mode;
+        if (mode === 'auto') window.thresholdModule.state.autoWarningMode = 'single';
+        window.thresholdModule.renderLeftTabs();
+        window.thresholdModule.renderControls();
+        window.thresholdModule.renderCards();
 
-    // 添加白色闪烁动画（仅下方内容区）
-    const tabContent = document.querySelector('#threshold-analysis-modal .tab-content-container');
-    if (tabContent) {
-        tabContent.classList.add('fade-white');
-        setTimeout(() => {
-            tabContent.classList.remove('fade-white');
-        }, 200);
-    }
-},
+        const tabContent = document.querySelector('#threshold-analysis-modal .tab-content-container');
+        if (tabContent) {
+            tabContent.classList.add('fade-white');
+            setTimeout(() => {
+                tabContent.classList.remove('fade-white');
+            }, 200);
+        }
+    },
 
-    // 渲染标题栏右侧的模式切换按钮
     renderModeSwitch: () => {
         const container = document.querySelector('.threshold-modal-header .mode-switch-group');
         if (!container) return;
@@ -309,45 +540,170 @@ toggleMode: (mode) => {
         const infoText = document.getElementById('info-tip-text');
         if (!headerContainer) return;
 
-        // 先渲染标题栏的模式切换按钮
         window.thresholdModule.renderModeSwitch();
 
         const warningType = window.thresholdModule.state.warningType;
         const autoMode = window.thresholdModule.state.autoWarningMode;
 
         if (warningType === 'auto') {
-            // 自动预警模式（不再包含单选按钮组）
-            let leftContentHtml = '';
             if (autoMode === 'single') {
+                const leftContentHtml = `
+                    <div class="flex-align-center gap-12" style="flex-wrap: nowrap; overflow: visible !important;" id="auto-single-controls">
+                        <div class="flex-align-center gap-8"><span class="form-label">选择区域:</span><div id="auto-region-selector" style="width:115px;"></div></div>
+                        <div class="flex-align-center gap-8"><span class="form-label">监测线:</span><div id="auto-line-selector" style="width:115px;"></div></div>
+                        <div class="flex-align-center gap-8"><span class="form-label">设备类型:</span><div id="auto-device-type-selector" style="width:125px;"></div></div>
+                        <div class="flex-align-center gap-8"><span class="form-label">监测点:</span><div id="auto-point-selector" style="width:125px;"></div></div>
+                    </div>
+                `;
+
+                headerContainer.innerHTML = `
+                    <div class="flex-between" style="width: 100%;">
+                        <div class="flex-align-center gap-20" style="flex-wrap: nowrap;">${leftContentHtml}</div>
+                        <button class="primary-btn" onclick="window.thresholdModule.save()">保存参数</button>
+                    </div>
+                `;
+
+setTimeout(() => {
+                    const regionContainer = document.getElementById('auto-region-selector');
+                    const lineContainer = document.getElementById('auto-line-selector');
+                    const deviceTypeContainer = document.getElementById('auto-device-type-selector');
+                    const pointContainer = document.getElementById('auto-point-selector');
+
+                    const regionsList = window.thresholdModule.getAllRegions();
+                    const typesList = window.thresholdModule.getAllDeviceTypes();
+
+                    // 1. 构建全局全量组合数据源（用于实现完美的漏斗过滤，保证初始有数据）
+                    const allData =[];
+                    regionsList.forEach(r => {
+                        const linesList = window.thresholdModule.getLinesByRegion(r);
+                        linesList.forEach(l => {
+                            typesList.forEach(t => {
+                                const pts = window.thresholdModule.getPointsByRegionAndLineAndDeviceType(r, l, t);
+                                pts.forEach(p => {
+                                    allData.push({ region: r, line: l, type: t, point: p });
+                                });
+                            });
+                        });
+                    });
+
+                    let rSelect, lSelect, tSelect, pSelect;
+
+                    // 2. 纯净级联下拉逻辑：基于 allData 进行动态过滤
+                    const updateLineOptions = () => {
+                        const r = window.thresholdModule.state.selectedRegion;
+
+                        let validData = allData;
+                        if (r) validData = validData.filter(d => d.region === r);
+
+                        const lines = Array.from(new Set(validData.map(d => d.line)));
+
+                        lineContainer.innerHTML = '';
+                        lSelect = window.thresholdModule.renderSearchableSingleSelect(
+                            lines.map(v => ({ value: v, label: v })), 'auto-line-input', 'auto-line-dropdown', '请选择监测线',
+                            (val) => {
+                                window.thresholdModule.state.selectedLine = val;
+                                window.thresholdModule.state.selectedDeviceType = '';
+                                window.thresholdModule.state.selectedPoint = '';
+                                updateTypeOptions();
+                            },
+                            window.thresholdModule.state.selectedLine
+                        );
+                        lineContainer.appendChild(lSelect.container);
+                        updateTypeOptions();
+                    };
+
+                    const updateTypeOptions = () => {
+                        const r = window.thresholdModule.state.selectedRegion;
+                        const l = window.thresholdModule.state.selectedLine;
+
+                        let validData = allData;
+                        if (r) validData = validData.filter(d => d.region === r);
+                        if (l) validData = validData.filter(d => d.line === l);
+
+                        const types = Array.from(new Set(validData.map(d => d.type)));
+
+                        deviceTypeContainer.innerHTML = '';
+                        tSelect = window.thresholdModule.renderSearchableSingleSelect(
+                            types.map(v => ({ value: v, label: v })), 'auto-device-type-input', 'auto-device-type-dropdown', '请选择设备',
+                            (val) => {
+                                window.thresholdModule.state.selectedDeviceType = val;
+                                window.thresholdModule.state.selectedPoint = '';
+                                updatePointOptions();
+                            },
+                            window.thresholdModule.state.selectedDeviceType
+                        );
+                        deviceTypeContainer.appendChild(tSelect.container);
+                        updatePointOptions();
+                    };
+
+                    const updatePointOptions = () => {
+                        const r = window.thresholdModule.state.selectedRegion;
+                        const l = window.thresholdModule.state.selectedLine;
+                        const t = window.thresholdModule.state.selectedDeviceType;
+
+                        // 动态过滤：如果某个条件为空，就不依据该条件过滤
+                        let validData = allData;
+                        if (r) validData = validData.filter(d => d.region === r);
+                        if (l) validData = validData.filter(d => d.line === l);
+                        if (t) validData = validData.filter(d => d.type === t);
+
+                        // 去重并提取监测点
+                        const pts = Array.from(new Set(validData.map(d => d.point)));
+
+                        pointContainer.innerHTML = '';
+                        pSelect = window.thresholdModule.renderSearchableSingleSelect(
+                            pts.map(v => ({ value: v, label: v })), 'auto-point-input', 'auto-point-dropdown', '请选择监测点',
+                            (val) => {
+                                window.thresholdModule.state.selectedPoint = val;
+                            },
+                            window.thresholdModule.state.selectedPoint
+                        );
+                        pointContainer.appendChild(pSelect.container);
+                    };
+
+                    // 初始化触发区域下拉
+                    regionContainer.innerHTML = '';
+                    rSelect = window.thresholdModule.renderSearchableSingleSelect(
+                        regionsList.map(v => ({ value: v, label: v })), 'auto-region-input', 'auto-region-dropdown', '请选择区域',
+                        (val) => {
+                            window.thresholdModule.state.selectedRegion = val;
+                            window.thresholdModule.state.selectedLine = '';
+                            window.thresholdModule.state.selectedDeviceType = '';
+                            window.thresholdModule.state.selectedPoint = '';
+                            updateLineOptions();
+                        },
+                        window.thresholdModule.state.selectedRegion
+                    );
+                    regionContainer.appendChild(rSelect.container);
+
+                    // 启动级联链条
+                    updateLineOptions();
+
+                }, 0);
+
+                infoText.innerHTML = '单源预警模式：基于单一监测指标（表面速度/表面加速度）设定阈值，支持区域→监测线→设备类型→监测点四级单选筛选。';
+            } else {
                 const regions = window.thresholdModule.getAllRegions();
-                const lines = window.thresholdModule.getLinesByRegion(window.thresholdModule.state.selectedRegion);
-                const points = window.thresholdModule.getPointsByRegionAndLine(window.thresholdModule.state.selectedRegion, window.thresholdModule.state.selectedLine);
-                leftContentHtml = `
-                    <div class="flex-align-center gap-12" style="flex-wrap: wrap;">
-                        <div class="flex-align-center gap-8"><span class="form-label">选择区域:</span><select id="single-region-select" class="breathing-select" style="width:100px;">${regions.map(r => `<option value="${r}" ${window.thresholdModule.state.selectedRegion === r ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
-                        <div class="flex-align-center gap-8"><span class="form-label">监测线:</span><select id="single-line-select" class="breathing-select" style="width:110px;">${lines.map(l => `<option value="${l}" ${window.thresholdModule.state.selectedLine === l ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-                        <div class="flex-align-center gap-8"><span class="form-label">监测点:</span><select id="single-point-select" class="breathing-select" style="width:120px;"><option value="">全部监测点</option>${points.map(p => `<option value="${p.id}" ${window.thresholdModule.state.selectedPoint === p.id ? 'selected' : ''}>${p.label}</option>`).join('')}</select></div>
+                const leftContentHtml = `<div class="flex-align-center gap-8"><span class="form-label">设置目标区域:</span><div id="auto-target-region-selector" style="width:200px;"></div></div>`;
+                headerContainer.innerHTML = `
+                    <div class="flex-between" style="width: 100%;">
+                        <div class="flex-align-center gap-20" style="flex-wrap: wrap;">${leftContentHtml}</div>
+                        <button class="primary-btn" onclick="window.thresholdModule.save()">保存参数</button>
                     </div>
                 `;
                 setTimeout(() => {
-                    const regionSelect = document.getElementById('single-region-select');
-                    const lineSelect = document.getElementById('single-line-select');
-                    if (regionSelect) regionSelect.onchange = (e) => { window.thresholdModule.state.selectedRegion = e.target.value; window.thresholdModule.state.selectedLine = '全部监测线'; window.thresholdModule.state.selectedPoint = ''; window.thresholdModule.renderControls(); };
-                    if (lineSelect) lineSelect.onchange = (e) => { window.thresholdModule.state.selectedLine = e.target.value; window.thresholdModule.state.selectedPoint = ''; window.thresholdModule.renderControls(); };
-                    if (document.getElementById('single-point-select')) document.getElementById('single-point-select').onchange = (e) => { window.thresholdModule.state.selectedPoint = e.target.value; };
+                    const targetContainer = document.getElementById('auto-target-region-selector');
+                    const regionOptions = regions.map(r => ({ value: r, label: r }));
+                    let targetRegions = window.thresholdModule.state.targetValue ? window.thresholdModule.state.targetValue.split('、') :[];
+                    const regionSelect = window.thresholdModule.renderSearchableMultiSelect(
+                        regionOptions, 'auto-target-region-input', 'auto-target-region-dropdown', '请选择目标区域',
+                        (vals) => { window.thresholdModule.state.targetValue = vals.join('、'); },
+                        targetRegions
+                    );
+                    targetContainer.appendChild(regionSelect.container);
                 }, 0);
-                infoText.innerHTML = '单源预警模式：基于单一监测指标（表面速度/表面加速度）设定阈值，支持区域→监测线→监测点三级筛选。';
-            } else {
-                const regions = window.thresholdModule.getAllRegions();
-                leftContentHtml = `<div class="flex-align-center gap-8"><span class="form-label">设置目标区域:</span><select id="auto-target-region" class="breathing-select" style="width:100px;" onchange="window.thresholdModule.updateAutoTargetRegion(this.value)">${regions.map(r => `<option value="${r}" ${window.thresholdModule.state.targetValue === r ? 'selected' : ''}>${r}</option>`).join('')}</select></div>`;
                 infoText.innerHTML = '多源预警模式：支持为不同预警等级独立选择预警参数。';
             }
-            headerContainer.innerHTML = `
-                <div class="flex-between" style="width: 100%;">
-                    <div class="flex-align-center gap-20" style="flex-wrap: wrap;">${leftContentHtml}</div>
-                    <button class="primary-btn" onclick="window.thresholdModule.save()">保存参数</button>
-                </div>
-            `;
             document.getElementById('info-tip-box').style.display = 'flex';
             return;
         }
@@ -357,7 +713,6 @@ toggleMode: (mode) => {
         let selectHtml = '';
         let extraControlsHtml = '';
 
-        // 处理原始四个模块
         if (tab === 'GNSS') {
             selectHtml = `<select class="breathing-select" style="width: 120px;" onchange="window.thresholdModule.state.paramType=this.value; window.thresholdModule.renderCards()">
                             <option value="位移量" ${window.thresholdModule.state.paramType === '位移量' ? 'selected' : ''}>位移量</option>
@@ -401,7 +756,7 @@ toggleMode: (mode) => {
             infoText.innerHTML = `注：预警参数可设置为 <b>累积降雨量(mm)</b> 或 <b>实时降雨量(mm)</b>，右侧将为各等级分别设置阈值。`;
         } else if (tab === '地下水监测') {
             const subType = window.thresholdModule.state.waterSubType;
-            let categories = window.thresholdModule.paramConfig['地下水监测'].categories[subType] || [];
+            let categories = window.thresholdModule.paramConfig['地下水监测'].categories[subType] ||[];
             selectHtml = `<select class="breathing-select" style="width: 120px;" onchange="window.thresholdModule.state.paramType=this.value; window.thresholdModule.renderCards()">
                             ${categories.map(cat => `<option value="${cat.name}" ${window.thresholdModule.state.paramType === cat.name ? 'selected' : ''}>${cat.name}</option>`).join('')}
                           </select>`;
@@ -425,7 +780,14 @@ toggleMode: (mode) => {
             infoText.innerHTML = `注：预警参数可选<b>速度(mm/h)</b>、<b>位移(mm)</b>、<b>累积位移(mm)</b>、<b>加速度(mm/h²)</b>或<b>切线角(°)</b>，右侧将为各等级分别设置对应分量的阈值。`;
         }
 
-        // 构建左侧区域（移除了单选按钮组和分隔线）
+        const radarAreaHtml = (tab === '雷达监测') ? `
+            <div id="radar-area-box" class="flex-align-center gap-8" style="display:flex; margin-left: 8px;">
+                <span class="form-label">预警评估范围:</span>
+                <div class="input-with-unit"><input type="number" value="50" class="breathing-input-left" id="radar-eval-area" style="width:60px;"><span class="unit-addon">m²</span></div>
+            </div>
+        ` : `<div id="radar-area-box" style="display:none;"></div>`;
+
+        // 注意：将 radarAreaHtml 置于 sub-target-container 之后，实现与目标下拉框紧邻，并随多选框展示推移的效果
         const leftGroupHtml = `
             <div class="flex-align-center gap-20">
                 ${extraControlsHtml ? `<div class="flex-align-center gap-8">${extraControlsHtml}</div>` : ''}
@@ -435,36 +797,29 @@ toggleMode: (mode) => {
                 </div>
                 <div class="flex-align-center gap-8">
                     <span class="form-label" style="font-size: 13px;">设置目标:</span>
-                    <select class="breathing-select" style="width: 85px;" onchange="window.thresholdModule.updateTarget(this.value)">
+                    <select class="breathing-select" style="width: 85px;" onchange="window.thresholdModule.updateTarget(this.value, true)">
                         <option value="global" ${window.thresholdModule.state.targetLevel === 'global' ? 'selected' : ''}>全局</option>
                         <option value="region" ${window.thresholdModule.state.targetLevel === 'region' ? 'selected' : ''}>区域</option>
                         <option value="line" ${window.thresholdModule.state.targetLevel === 'line' ? 'selected' : ''}>监测线</option>
                         <option value="point" ${window.thresholdModule.state.targetLevel === 'point' ? 'selected' : ''}>监测点</option>
                     </select>
                     <div id="sub-target-container"></div>
+                    ${radarAreaHtml}
                 </div>
             </div>
         `;
-
-        const radarAreaHtml = (tab === '雷达监测') ? `
-            <div id="radar-area-box" class="flex-align-center gap-8" style="display:flex;">
-                <span class="form-label">预警评估范围:</span>
-                <div class="input-with-unit"><input type="number" value="50" class="breathing-input-left" id="radar-eval-area"><span class="unit-addon">m²</span></div>
-            </div>
-        ` : `<div id="radar-area-box" style="display:none;"></div>`;
 
         headerContainer.innerHTML = `
             <div class="flex-between" style="width: 100%;">
                 <div class="flex-align-center gap-20" style="flex-wrap: wrap;">
                     ${leftGroupHtml}
-                    ${radarAreaHtml}
                 </div>
                 <button class="primary-btn" onclick="window.thresholdModule.save()">保存参数</button>
             </div>
         `;
-        // 显示注释区域（所有类型都显示）
         document.getElementById('info-tip-box').style.display = 'flex';
-        window.thresholdModule.updateTarget(window.thresholdModule.state.targetLevel);
+        // 初次加载时不强制清空
+        window.thresholdModule.updateTarget(window.thresholdModule.state.targetLevel, false);
     },
 
     updateWaterSubType: (subType) => {
@@ -475,24 +830,51 @@ toggleMode: (mode) => {
         window.thresholdModule.renderCards();
     },
 
-    updateTarget: (level) => {
+    updateTarget: (level, isUserAction = false) => {
         window.thresholdModule.state.targetLevel = level;
+
+        // 核心修改：如果是一级条件的更改（用户主动切换），彻底清空二级的输入/选择状态
+        if (isUserAction) {
+            window.thresholdModule.state.targetValue = '';
+        }
+
         const subContainer = document.getElementById('sub-target-container');
         if (!subContainer) return;
+        subContainer.innerHTML = '';
+
         if (level === 'global') {
-            subContainer.innerHTML = '';
+            // 无额外控件
         } else if (level === 'region') {
             const regions = window.thresholdModule.getAllRegions();
-            subContainer.innerHTML = `<select class="breathing-select" style="width: 95px;" onchange="window.thresholdModule.state.targetValue=this.value">${regions.map(v => `<option value="${v}" ${window.thresholdModule.state.targetValue === v ? 'selected' : ''}>${v}</option>`).join('')}</select>`;
+            const options = regions.map(r => ({ value: r, label: r }));
+            let targetRegions = window.thresholdModule.state.targetValue ? window.thresholdModule.state.targetValue.split('、') :[];
+            const { container, setSelected } = window.thresholdModule.renderSearchableMultiSelect(
+                options, 'region-multi-target', 'region-multi-dropdown', '请选择区域',
+                (vals) => { window.thresholdModule.state.targetValue = vals.join('、'); },
+                targetRegions
+            );
+            subContainer.appendChild(container);
         } else if (level === 'line') {
-            const lines = ['1号线', '2号线', '3号线', '4号线'];
-            subContainer.innerHTML = `<select class="breathing-select" style="width: 95px;" onchange="window.thresholdModule.state.targetValue=this.value">${lines.map(v => `<option value="${v}" ${window.thresholdModule.state.targetValue === v ? 'selected' : ''}>${v}</option>`).join('')}</select>`;
+            const lines = window.thresholdModule.getAllLines();
+            const options = lines.map(l => ({ value: l, label: l }));
+            let targetLines = window.thresholdModule.state.targetValue ? window.thresholdModule.state.targetValue.split('、') :[];
+            const { container, setSelected } = window.thresholdModule.renderSearchableMultiSelect(
+                options, 'line-multi-target', 'line-multi-dropdown', '请选择监测线',
+                (vals) => { window.thresholdModule.state.targetValue = vals.join('、'); },
+                targetLines
+            );
+            subContainer.appendChild(container);
         } else if (level === 'point') {
             const tab = window.thresholdModule.state.activeTab;
             const devices = window.thresholdModule.getDevicesByTab(tab);
-            subContainer.innerHTML = `<select class="breathing-select" style="width: 105px;" onchange="window.thresholdModule.state.targetValue=this.value">
-                ${devices.map(v => `<option value="${v}" ${window.thresholdModule.state.targetValue === v ? 'selected' : ''}>${v}</option>`).join('')}
-            </select>`;
+            const options = devices.map(d => ({ value: d, label: d }));
+            let targetPoints = window.thresholdModule.state.targetValue ? window.thresholdModule.state.targetValue.split('、') :[];
+            const { container, setSelected } = window.thresholdModule.renderSearchableMultiSelect(
+                options, 'point-multi-target', 'point-multi-dropdown', '请选择监测点',
+                (vals) => { window.thresholdModule.state.targetValue = vals.join('、'); },
+                targetPoints
+            );
+            subContainer.appendChild(container);
         }
     },
 
@@ -515,9 +897,10 @@ toggleMode: (mode) => {
             return;
         }
 
+        // 阈值预警模式卡片渲染
         const tab = window.thresholdModule.state.activeTab;
         const pType = window.thresholdModule.state.paramType;
-        const levels = [
+        const levels =[
             { id: 'red', name: '一级预警', label: '红色', val: 200 },
             { id: 'orange', name: '二级预警', label: '橙色', val: 150 },
             { id: 'yellow', name: '三级预警', label: '黄色', val: 100 },
@@ -563,7 +946,7 @@ toggleMode: (mode) => {
             return;
         }
 
-        let components = [];
+        let components =[];
         let unit = '';
         let categoryName = pType;
         if (tab === '裂缝监测') {
@@ -611,7 +994,7 @@ toggleMode: (mode) => {
     },
 
     renderSingleSourceCards: () => {
-        const levels = [
+        const levels =[
             { id: 'blue', name: '四级预警', label: '蓝色', indicator: '表面速度', unit: 'mm/d', sig: '0.05' },
             { id: 'yellow', name: '三级预警', label: '黄色', indicator: '表面速度', unit: 'mm/d', sig: '0.001' },
             { id: 'orange', name: '二级预警', label: '橙色', indicator: '表面加速度', unit: 'mm/d²', sig: '0.05' },
@@ -631,14 +1014,14 @@ toggleMode: (mode) => {
     },
 
     renderMultiSourceCards: () => {
-        const metricOptions = ['表面速度', '表面加速度', '应力', '深部位移'];
+        const metricOptions =['表面速度', '表面加速度', '应力', '深部位移'];
         const unitMap = { '表面速度':'mm/d', '表面加速度':'mm/d²', '应力':'kPa', '深部位移':'mm' };
         const defaultMetrics = ['表面速度', '表面速度', '表面加速度', '应力'];
-        const levelIds = ['blue', 'yellow', 'orange', 'red'];
-        const levelNames = ['四级预警', '三级预警', '二级预警', '一级预警'];
-        const levelLabels = ['蓝色', '黄色', '橙色', '红色'];
-        const defaultThres = [10, 20, 5, 10];
-        const defaultSig = ['0.05', '0.001', '0.05', '0.001'];
+        const levelIds =['blue', 'yellow', 'orange', 'red'];
+        const levelNames =['四级预警', '三级预警', '二级预警', '一级预警'];
+        const levelLabels =['蓝色', '黄色', '橙色', '红色'];
+        const defaultThres =[10, 20, 5, 10];
+        const defaultSig =['0.05', '0.001', '0.05', '0.001'];
         let html = '';
         for (let idx = 0; idx < 4; idx++) {
             html += `
@@ -674,7 +1057,11 @@ toggleMode: (mode) => {
         if (window.thresholdModule.state.warningType === 'auto') {
             const mode = window.thresholdModule.state.autoWarningMode;
             if (mode === 'single') {
-                alert(`✅ 单源预警参数已保存！\n目标：区域【${window.thresholdModule.state.selectedRegion}】→ 监测线【${window.thresholdModule.state.selectedLine}】→ 监测点【${window.thresholdModule.state.selectedPoint || '全部'}】`);
+                const sr = window.thresholdModule.state.selectedRegion || '未选择';
+                const sl = window.thresholdModule.state.selectedLine || '未选择';
+                const sd = window.thresholdModule.state.selectedDeviceType || '未选择';
+                const sp = window.thresholdModule.state.selectedPoint || '未选择';
+                alert(`✅ 单源预警参数已保存！\n目标：区域【${sr}】→ 监测线【${sl}】→ 设备类型【${sd}】→ 监测点【${sp}】`);
             } else {
                 alert(`✅ 多源预警参数已保存！\n目标区域：${window.thresholdModule.state.targetValue}`);
             }

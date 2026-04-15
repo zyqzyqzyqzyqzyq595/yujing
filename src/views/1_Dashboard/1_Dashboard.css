@@ -173,8 +173,7 @@
    裂缝/雷达弹窗层级冲突修复：强制下拉菜单悬浮 + 保护图表高度
    ========================================================= */
 
-/* 1. 强制下拉菜单容器悬浮，绝对不许占据图表位子 */
-[id*="metric-items-container"],
+/* 1. 强制下拉菜单容器悬浮，绝对不许占据图表位子 */[id*="metric-items-container"],
 [id*="device-items-container"] {
     display: none; /* 默认由 JS 控制显示/隐藏 */
     position: absolute !important; /* ⬅️ 核心修复：脱离布局流 */
@@ -190,8 +189,7 @@
     padding: 5px 0 !important;
 }
 
-/* 2. 保护图表外层盒子，允许内部元素溢出显示（让悬浮窗能露出来） */
-[class*="chart-box"] {
+/* 2. 保护图表外层盒子，允许内部元素溢出显示（让悬浮窗能露出来） */[class*="chart-box"] {
     position: relative !important;
     overflow: visible !important; /* ⬅️ 允许内部的下拉菜单溢出盒子边界显示 */
     display: flex !important;
@@ -305,13 +303,14 @@
   cursor: pointer;
 }
 
+/* 弹窗主体 - 宽高和原阈值设置区域比例适配 */
 .threshold-modal-container {
   position: relative;
   width: 1320px;
   max-width: 90vw;
-  height: 620px;          /* 固定高度，保证两种模式一致 */
-  min-height: 500px;      /* 保留最小高度，但实际会被固定高度覆盖 */
-  max-height: 85vh;       /* 限制最大高度，超出滚动 */
+  height: auto;               /* 改为自适应高度 */
+  min-height: 500px;          /* 保证最小高度，避免过小 */
+  max-height: 85vh;           /* 限制最大高度，超出滚动 */
   background: #fff;
   border-radius: 24px;
   box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
@@ -991,30 +990,127 @@
     margin-left: auto !important;
 }
 
-/* 弹窗切换闪黑动画 */
-.threshold-modal-container.flash-dark {
-    animation: flashDark 0.3s ease-out;
+/* 可搜索多选下拉组件样式 */
+.searchable-multi-select {
+    position: relative;
+    display: inline-block;
+    width: 200px;
 }
-@keyframes flashDark {
-    0% {
-        background-color: rgba(0, 0, 0, 0);
-    }
-    30% {
-        background-color: rgba(0, 0, 0, 0.25);
-    }
-    100% {
-        background-color: rgba(0, 0, 0, 0);
-    }
+.multi-select-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.multi-select-input {
+    width: 100%;
+    padding-right: 24px;
+    cursor: pointer;
+}
+.multi-select-arrow {
+    position: absolute;
+    right: 8px;
+    font-size: 12px;
+    color: #999;
+    pointer-events: auto;
+    cursor: pointer;
+}
+.multi-select-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 10001;
+    background: #fff;
+    border: 1px solid #1c3d90;
+    border-radius: 4px;
+    width: 100%;
+    max-height: 300px;
+    overflow-y: auto;
+    box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+}
+.multi-select-search {
+    padding: 8px;
+    border-bottom: 1px solid #eee;
+}
+.multi-select-filter {
+    width: 100%;
+    padding: 4px 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+.multi-select-options {
+    max-height: 240px;
+    overflow-y: auto;
+}
+.multi-select-option {
+    padding: 8px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.multi-select-option:hover {
+    background: #f0f7ff;
+}
+.multi-select-option input {
+    margin: 0;
+    cursor: pointer;
+}
+
+.multi-select-options-header {
+    padding: 6px 8px;
+    border-bottom: 1px solid #eee;
+}
+.multi-select-all-btn {
+    display: block;          /* 改为块级元素，占满整行 */
+    background: #e0e7ff;    /* 灰蓝色背景 */
+    color: #1e3a8a;         /* 深蓝色文字，保持可读性 */
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    text-align: center;
+    width: 100%;            /* 占满父容器宽度 */
+    box-sizing: border-box;
+    transition: background 0.2s ease;
+}
+.multi-select-all-btn:hover {
+    background: #c7d2fe;    /* 悬停时稍深的灰蓝色 */
 }
 
 /* =========================================================
-   预警设置弹窗 - 内容区白色闪烁切换动画
+   自动预警单源模式 - 四个下拉框强制一行 + 宽度优化
    ========================================================= */
-.tab-content-container.fade-white {
-    animation: flashWhite 0.2s ease-out;
+.threshold-modal-body #auto-single-controls {
+    flex-wrap: nowrap !important;
+    gap: 12px !important;
+    overflow: visible !important; /* 核心修复：防止截断下拉框 */
 }
-@keyframes flashWhite {
-    0% { background-color: #ffffff; }
-    50% { background-color: #f0f2f5; }
-    100% { background-color: #ffffff; }
+
+.threshold-modal-body #auto-single-controls > div {
+    flex-shrink: 0;            /* 防止子项被压缩 */
+}
+
+.threshold-modal-body #auto-region-selector,
+.threshold-modal-body #auto-line-selector {
+    width: 115px;   /* 宽度变短 */
+    display: inline-block;
+}
+
+.threshold-modal-body #auto-device-type-selector,
+.threshold-modal-body #auto-point-selector {
+    width: 125px;   /* 宽度变短 */
+    display: inline-block;
+}
+
+/* 下拉输入框内部文字不换行 */
+.threshold-modal-body .multi-select-input,
+.threshold-modal-body .single-select-input {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 标签文字保持不换行 */
+.threshold-modal-body .form-label {
+    white-space: nowrap;
 }
