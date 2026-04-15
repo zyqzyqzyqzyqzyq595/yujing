@@ -1020,14 +1020,17 @@ const dashModule = {
     return data.sort((a, b) => a.alarmIdx - b.alarmIdx || b.value - a.value);
   },
 
-/** 右侧看板「监测预警」表格：根据地图当前显示的所有在线设备生成预警时间和随机值 */
+/** 右侧看板「监测预警」表格：根据地图当前显示的所有在线设备生成预警时间和随机值（排除遥感和地质写实） */
 getWarningTableData() {
     const rows = [];
-    // 遍历所有设备，不限制类型（GNSS / DEEP / RADAR / STRESS 等）
+    // 遍历所有设备
     for (const id of Object.keys(mapModule.pMeta)) {
         const meta = mapModule.pMeta[id];
-        // 只考虑在线设备，且必须符合地图当前的筛选条件（区域、监测线、设备类型勾选等）
+        // 只考虑在线设备
         if (!meta || !meta.isOnline) continue;
+        // ⭐ 排除遥感和地质写实监测点
+        if (meta.type === 'SAT' || meta.type === 'SURFACE') continue;
+        // 必须符合地图当前的筛选条件（区域、监测线、设备类型勾选等）
         if (!mapFilterModule.isDeviceInDashboardScope(id)) continue;
 
         // 生成随机预警时间（最近7天内）
@@ -1063,7 +1066,7 @@ getWarningTableData() {
             type: meta.type,
             warnTime: warnTimeStr,
             value: value,
-            threshold: this.thresholds[meta.alarmIdx],          // 预警阈值（按等级）
+            threshold: this.thresholds[meta.alarmIdx],
         });
     }
     // 按预警等级排序（一级最高），同等级按值降序
