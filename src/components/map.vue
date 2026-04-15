@@ -1020,45 +1020,59 @@ const dashModule = {
     return data.sort((a, b) => a.alarmIdx - b.alarmIdx || b.value - a.value);
   },
 
-  /** 右侧看板「监测预警」表格：生成预警时间和随机值（不依赖原始标高/速度） */
-  getWarningTableData() {
+/** 右侧看板「监测预警」表格：根据地图当前显示的所有在线设备生成预警时间和随机值 */
+getWarningTableData() {
     const rows = [];
-    // 直接遍历所有在线 GNSS 设备（右侧表格历来只显示 GNSS 设备）
+    // 遍历所有设备，不限制类型（GNSS / DEEP / RADAR / STRESS 等）
     for (const id of Object.keys(mapModule.pMeta)) {
-      const meta = mapModule.pMeta[id];
-      if (!meta || meta.type !== 'GNSS' || !meta.isOnline) continue;
+        const meta = mapModule.pMeta[id];
+        // 只考虑在线设备，且必须符合地图当前的筛选条件（区域、监测线、设备类型勾选等）
+        if (!meta || !meta.isOnline) continue;
+        if (!mapFilterModule.isDeviceInDashboardScope(id)) continue;
 
-      // 生成随机预警时间（最近7天内）
-      const seed = parseInt(id.replace('pt-', ''), 10) || 0;
-      const now = new Date();
-      const randomDaysAgo = Math.floor(Math.random() * 7);
-      const randomHours = Math.floor(Math.random() * 24);
-      const randomMinutes = Math.floor(Math.random() * 60);
-      const warnTime = new Date(now);
-      warnTime.setDate(now.getDate() - randomDaysAgo);
-      warnTime.setHours(randomHours, randomMinutes, 0, 0);
-      const warnTimeStr = `${warnTime.getMonth() + 1}/${warnTime.getDate()} ${warnTime.getHours().toString().padStart(2, '0')}:${warnTime.getMinutes().toString().padStart(2, '0')}`;
+        // 生成随机预警时间（最近7天内）
+        const seed = parseInt(id.replace('pt-', ''), 10) || 0;
+        const now = new Date();
+        const randomDaysAgo = Math.floor(Math.random() * 7);
+        const randomHours = Math.floor(Math.random() * 24);
+        const randomMinutes = Math.floor(Math.random() * 60);
+        const warnTime = new Date(now);
+        warnTime.setDate(now.getDate() - randomDaysAgo);
+        warnTime.setHours(randomHours, randomMinutes, 0, 0);
+        const warnTimeStr = `${warnTime.getMonth() + 1}/${warnTime.getDate()} ${warnTime.getHours().toString().padStart(2, '0')}:${warnTime.getMinutes().toString().padStart(2, '0')}`;
 
-      // 随机值（模拟速度/位移等）
-      let value = (Math.random() * 10 + 0.5).toFixed(2); // 0.5~10.5
+        // 根据设备类型生成不同量级的随机值（用于演示）
+        let value = '0.00';
+        if (meta.type === 'GNSS') {
+            value = (Math.random() * 10 + 0.5).toFixed(2);      // 0.5~10.5
+        } else if (meta.type === 'RADAR') {
+            value = (Math.random() * 20 + 1).toFixed(2);        // 1~21
+        } else if (meta.type === 'DEEP') {
+            value = (Math.random() * 30 + 5).toFixed(2);        // 5~35
+        } else if (meta.type === 'STRESS') {
+            value = (Math.random() * 200 + 50).toFixed(2);      // 50~250
+        } else {
+            value = (Math.random() * 15 + 1).toFixed(2);        // 其他类型
+        }
 
-      rows.push({
-        id,
-        deviceId: meta.deviceId,
-        alarmIdx: meta.alarmIdx,
-        region: meta.region,
-        warnTime: warnTimeStr,
-        value: value,
-        threshold: this.thresholds[meta.alarmIdx],
-      });
+        rows.push({
+            id: meta.id,
+            deviceId: meta.deviceId,
+            alarmIdx: meta.alarmIdx,
+            region: meta.region,
+            type: meta.type,
+            warnTime: warnTimeStr,
+            value: value,
+            threshold: this.thresholds[meta.alarmIdx],          // 预警阈值（按等级）
+        });
     }
-    // 按预警等级排序，同等级按数值降序
+    // 按预警等级排序（一级最高），同等级按值降序
     return rows.sort((a, b) => {
-      const d = a.alarmIdx - b.alarmIdx;
-      if (d !== 0) return d;
-      return parseFloat(b.value) - parseFloat(a.value);
+        const d = a.alarmIdx - b.alarmIdx;
+        if (d !== 0) return d;
+        return parseFloat(b.value) - parseFloat(a.value);
     });
-  },
+},
 
   getSortedVibData() {
     const data = Object.keys(mapModule.pMeta)

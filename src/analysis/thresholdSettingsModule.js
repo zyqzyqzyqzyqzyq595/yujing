@@ -32,6 +32,7 @@ export function getThresholdModalMarkup() {
 
 window.thresholdModule = {
     state: {
+        isInitialized: false, // 初始化锁
         activeTab: 'GNSS',
         warningType: 'threshold',
         autoWarningMode: 'single',
@@ -43,6 +44,50 @@ window.thresholdModule = {
         selectedPoint: '',
         multiMetrics: { level1: '表面加速度', level2: '表面加速度', level3: '表面速度', level4: '表面速度' }
     },
+    // 1. 确保渲染的内部方法
+        init: function() {
+            // 如果容器里已经有内容了，就不再重复渲染，保证性能
+            const tabsContainer = document.getElementById('threshold-left-tabs');
+            if (tabsContainer && tabsContainer.innerHTML.trim() !== "") {
+                this.state.isInitialized = true;
+            }
+
+            if (this.state.isInitialized) return;
+
+            // 执行你原本渲染左侧 Tab 的逻辑
+            if (typeof this.renderTabs === 'function') {
+                this.renderTabs();
+            }
+            this.state.isInitialized = true;
+        },
+
+        // 2. 核心：封装统一的打开接口
+        open: function() {
+            const modal = document.getElementById('threshold-analysis-modal');
+            if (modal) {
+                // A. 先确保内容已经“画”好了（解决按钮不见的问题）
+                this.init();
+
+                // B. 强制重置所有属性（解决只能点一次的问题）
+                modal.style.display = 'flex';
+                modal.style.visibility = 'visible';
+                modal.style.opacity = '1';
+
+                // C. 触发一次当前 Tab 的高亮联动
+                this.switchTab(this.state.activeTab);
+            }
+        },
+
+        // 3. 关闭接口
+        close: function() {
+            const modal = document.getElementById('threshold-analysis-modal');
+            if (modal) {
+                // 直接瞬间切断，防止残影滞后
+                modal.style.display = 'none';
+                modal.style.opacity = '0';
+                modal.style.visibility = 'hidden';
+            }
+        },
 
     // 辅助：获取所有可用区域列表
     getAllRegions: () => {
@@ -121,18 +166,26 @@ window.thresholdModule = {
         window.thresholdModule.renderCards();
     },
 
-    close: () => {
-        const modal = document.getElementById('threshold-analysis-modal');
-        if (modal) modal.style.visibility = 'hidden';
-    },
+close: () => {
+    const modal = document.getElementById('threshold-analysis-modal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.style.visibility = 'hidden';
+        modal.style.opacity = '0';
+    }
+},
 
-    open: () => {
-        const modal = document.getElementById('threshold-analysis-modal');
-        if (modal) modal.style.visibility = 'visible';
-        window.thresholdModule.renderLeftTabs();
-        window.thresholdModule.renderControls();
-        window.thresholdModule.renderCards();
-    },
+open: () => {
+    const modal = document.getElementById('threshold-analysis-modal');
+    if (modal) {
+        modal.style.display = 'flex';      // ← 关键修复
+        modal.style.visibility = 'visible';
+        modal.style.opacity = '1';
+    }
+    window.thresholdModule.renderLeftTabs();
+    window.thresholdModule.renderControls();
+    window.thresholdModule.renderCards();
+},
 
     switchTab: (tabName) => {
         if (window.thresholdModule.state.warningType !== 'threshold') return;

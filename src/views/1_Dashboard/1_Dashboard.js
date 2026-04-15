@@ -53,17 +53,18 @@ export default defineComponent({
       const thresholdHost = document.getElementById('threshold-modal-root');
       if (thresholdHost) thresholdHost.innerHTML = getThresholdModalMarkup();
 
-      // 3. 绑定“预警设置”按钮点击事件（使用模块提供的 open 方法）
-      const settingsBtn = document.getElementById('warning-settings-btn');
-      if (settingsBtn) {
-        settingsBtn.onclick = () => {
-          if (window.thresholdModule && typeof window.thresholdModule.open === 'function') {
-            window.thresholdModule.open();   // ✅ 正确打开弹窗
-          } else {
-            console.warn('thresholdModule 未正确加载');
-          }
-        };
-      }
+// ✅ 替换为以下代码：无视 Vue 的 DOM 刷新，永久生效
+document.addEventListener('click', (e) => {
+    // 寻找被点击的元素或其父元素中，有没有这个 ID
+    const targetBtn = e.target.closest('#warning-settings-btn');
+    if (targetBtn) {
+        if (window.thresholdModule && typeof window.thresholdModule.open === 'function') {
+            window.thresholdModule.open();
+        } else {
+            console.warn('预警模块未正确加载');
+        }
+    }
+});
     });
 
     return {};
