@@ -752,3 +752,93 @@
 .threshold-modal-body ::-webkit-scrollbar-track {
   background: transparent;
 }
+
+
+/* =========================================================
+   GNSS 监测弹窗 (原生 analysis-modal) 终极排版与层级修复
+   ========================================================= */
+
+/* 1. 修复总体左右分栏：保护左侧控制面板绝对不被图表挤压 */
+#analysis-modal .modal-body {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+}
+
+#analysis-modal .filter-panel,
+#analysis-modal .left-sidebar {
+    width: 280px !important;
+    min-width: 280px !important;
+    flex-shrink: 0 !important; /* ⬅️ 核心：拒绝被右侧挤压 */
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 15px !important;
+    overflow-y: auto !important;
+    padding-right: 15px !important;
+}
+
+/* 释放右侧图表区空间 */
+#analysis-modal .chart-area,
+#analysis-modal .right-content {
+    flex: 1 !important;
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow-y: auto !important;
+    padding-left: 15px !important;
+}
+
+/* 2. 修复图表行：强制 1:1 双网格布局 (左曲线图，右矢量图) */
+#analysis-modal .chart-row {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 15px !important;
+    height: 380px !important;
+    width: 100% !important;
+    margin-bottom: 15px !important;
+}
+
+/* 3. 允许图表盒子溢出，防止悬浮窗被裁剪 */
+#analysis-modal .chart-box {
+    min-width: 0 !important;
+    overflow: visible !important;
+    position: relative !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+/* 4. 给 ECharts 画布穿上防弹衣，锁定物理高度避免塌成一条线 */
+#analysis-modal #curve-chart-main,
+#analysis-modal #vector-chart-main,
+#analysis-modal #evolution-chart-main {
+    height: 320px !important;
+    min-height: 320px !important;
+    width: 100% !important;
+    flex: none !important;
+}
+
+/* 5. 核心：将设备/指标选择下拉菜单彻底悬浮化，解决挤占空间问题 */
+#analysis-modal #device-items-container,
+#analysis-modal #metric-items-container {
+    position: absolute !important;
+    z-index: 99999 !important;
+    top: 35px !important;
+    right: 10px !important;
+    background: #fff !important;
+    border: 1px solid #1c3d90 !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2) !important;
+    width: 220px !important;
+    max-height: 400px !important;
+    overflow-y: auto !important;
+    display: none; /* 默认隐藏，由 JS 动态控制显示 */
+}
+
+/* 修复下拉选项里的文字排版，防止换行挤压 */
+#analysis-modal .multi-item {
+    padding: 8px 15px !important;
+    white-space: nowrap !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+}

@@ -154,108 +154,171 @@ window.thresholdModule = {
         window.thresholdModule.renderCards();
     },
 
-    renderControls: () => {
-        const headerContainer = document.getElementById('threshold-config-header');
-        const infoText = document.getElementById('info-tip-text');
-        if (!headerContainer) return;
+renderControls: () => {
+    const headerContainer = document.getElementById('threshold-config-header');
+    const infoText = document.getElementById('info-tip-text');
+    if (!headerContainer) return;
 
-        const warningType = window.thresholdModule.state.warningType;
-        const autoMode = window.thresholdModule.state.autoWarningMode;
+    const warningType = window.thresholdModule.state.warningType;
+    const autoMode = window.thresholdModule.state.autoWarningMode;
 
-        if (warningType === 'auto') {
-            // 自动预警模式（单源/多源）的渲染逻辑保持不变（此处省略，沿用之前代码）
-            // 为了节省篇幅，此处保留原有自动预警逻辑，但实际应与之前一致
-            // 由于自动预警部分未改动，且用户问题聚焦于阈值预警，此处简写，实际请使用之前完整的自动预警代码
-            if (autoMode === 'single') {
-                // ... 单源三级联动 ...
-                const regions = window.thresholdModule.getAllRegions();
-                const lines = window.thresholdModule.getLinesByRegion(window.thresholdModule.state.selectedRegion);
-                const points = window.thresholdModule.getPointsByRegionAndLine(
-                    window.thresholdModule.state.selectedRegion,
-                    window.thresholdModule.state.selectedLine
-                );
-                headerContainer.innerHTML = `
-                    <div class="config-actions flex-align-center gap-12" style="flex-wrap: wrap; width: 100%;">
-                        <div class="flex-align-center gap-8"><span class="form-label">选择区域:</span><select id="single-region-select" class="breathing-select" style="width:100px;">${regions.map(r => `<option value="${r}" ${window.thresholdModule.state.selectedRegion === r ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
-                        <div class="flex-align-center gap-8"><span class="form-label">监测线:</span><select id="single-line-select" class="breathing-select" style="width:110px;">${lines.map(l => `<option value="${l}" ${window.thresholdModule.state.selectedLine === l ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-                        <div class="flex-align-center gap-8"><span class="form-label">监测点:</span><select id="single-point-select" class="breathing-select" style="width:120px;"><option value="">全部监测点</option>${points.map(p => `<option value="${p.id}" ${window.thresholdModule.state.selectedPoint === p.id ? 'selected' : ''}>${p.label}</option>`).join('')}</select></div>
-                        <button class="primary-btn" onclick="window.thresholdModule.save()">保存参数</button>
+    if (warningType === 'auto') {
+        // ================= 自动预警模式 =================
+        // 顶部单选按钮组（自动/阈值）
+        const radioGroupHtml = `
+            <div class="radio-group flex-align-center gap-12">
+                <label class="radio-label">
+                    <input type="radio" name="warnType" value="auto" class="breathing-radio" checked onchange="window.thresholdModule.toggleMode('auto')"> 自动预警
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="warnType" value="threshold" class="breathing-radio" onchange="window.thresholdModule.toggleMode('threshold')"> 阈值预警
+                </label>
+            </div>
+        `;
+
+        let leftContentHtml = '';
+        if (autoMode === 'single') {
+            const regions = window.thresholdModule.getAllRegions();
+            const lines = window.thresholdModule.getLinesByRegion(window.thresholdModule.state.selectedRegion);
+            const points = window.thresholdModule.getPointsByRegionAndLine(
+                window.thresholdModule.state.selectedRegion,
+                window.thresholdModule.state.selectedLine
+            );
+            leftContentHtml = `
+                <div class="flex-align-center gap-12" style="flex-wrap: wrap;">
+                    <div class="flex-align-center gap-8">
+                        <span class="form-label">选择区域:</span>
+                        <select id="single-region-select" class="breathing-select" style="width:100px;">
+                            ${regions.map(r => `<option value="${r}" ${window.thresholdModule.state.selectedRegion === r ? 'selected' : ''}>${r}</option>`).join('')}
+                        </select>
                     </div>
-                `;
-                // 绑定事件...
+                    <div class="flex-align-center gap-8">
+                        <span class="form-label">监测线:</span>
+                        <select id="single-line-select" class="breathing-select" style="width:110px;">
+                            ${lines.map(l => `<option value="${l}" ${window.thresholdModule.state.selectedLine === l ? 'selected' : ''}>${l}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="flex-align-center gap-8">
+                        <span class="form-label">监测点:</span>
+                        <select id="single-point-select" class="breathing-select" style="width:120px;">
+                            <option value="">全部监测点</option>
+                            ${points.map(p => `<option value="${p.id}" ${window.thresholdModule.state.selectedPoint === p.id ? 'selected' : ''}>${p.label}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+            `;
+            // 绑定联动事件
+            setTimeout(() => {
                 const regionSelect = document.getElementById('single-region-select');
                 const lineSelect = document.getElementById('single-line-select');
                 if (regionSelect) regionSelect.onchange = (e) => { window.thresholdModule.state.selectedRegion = e.target.value; window.thresholdModule.state.selectedLine = '全部监测线'; window.thresholdModule.state.selectedPoint = ''; window.thresholdModule.renderControls(); };
                 if (lineSelect) lineSelect.onchange = (e) => { window.thresholdModule.state.selectedLine = e.target.value; window.thresholdModule.state.selectedPoint = ''; window.thresholdModule.renderControls(); };
                 if (document.getElementById('single-point-select')) document.getElementById('single-point-select').onchange = (e) => { window.thresholdModule.state.selectedPoint = e.target.value; };
-                infoText.innerHTML = '单源预警模式：基于单一监测指标（表面速度/表面加速度）设定阈值，支持区域→监测线→监测点三级筛选。';
-            } else {
-                const regions = window.thresholdModule.getAllRegions();
-                headerContainer.innerHTML = `<div class="config-actions flex-align-center gap-12"><div class="flex-align-center gap-8"><span class="form-label">设置目标区域:</span><select id="auto-target-region" class="breathing-select" style="width:100px;" onchange="window.thresholdModule.updateAutoTargetRegion(this.value)">${regions.map(r => `<option value="${r}" ${window.thresholdModule.state.targetValue === r ? 'selected' : ''}>${r}</option>`).join('')}</select></div><button class="primary-btn" onclick="window.thresholdModule.save()">保存参数</button></div>`;
-                infoText.innerHTML = '多源预警模式：支持为不同预警等级独立选择预警参数（表面速度、表面加速度、应力、深部位移）。';
-            }
-            document.getElementById('info-tip-box').style.display = 'flex';
-            return;
+            }, 0);
+            infoText.innerHTML = '单源预警模式：基于单一监测指标（表面速度/表面加速度）设定阈值，支持区域→监测线→监测点三级筛选。';
+        } else {
+            const regions = window.thresholdModule.getAllRegions();
+            leftContentHtml = `
+                <div class="flex-align-center gap-8">
+                    <span class="form-label">设置目标区域:</span>
+                    <select id="auto-target-region" class="breathing-select" style="width:100px;" onchange="window.thresholdModule.updateAutoTargetRegion(this.value)">
+                        ${regions.map(r => `<option value="${r}" ${window.thresholdModule.state.targetValue === r ? 'selected' : ''}>${r}</option>`).join('')}
+                    </select>
+                </div>
+            `;
+            infoText.innerHTML = '多源预警模式：支持为不同预警等级独立选择预警参数（表面速度、表面加速度、应力、深部位移）。';
         }
 
-        // ================= 阈值预警模式 =================
-        const tab = window.thresholdModule.state.activeTab;
-        let selectHtml = '';
-        if (tab === 'GNSS') {
-            selectHtml = `<select class="breathing-select" style="width: 120px;" onchange="window.thresholdModule.state.paramType=this.value; window.thresholdModule.renderCards()">
-                            <option value="位移量" ${window.thresholdModule.state.paramType === '位移量' ? 'selected' : ''}>位移量</option>
-                            <option value="位移速度" ${window.thresholdModule.state.paramType === '位移速度' ? 'selected' : ''}>位移速度</option>
-                            <option value="位移加速度" ${window.thresholdModule.state.paramType === '位移加速度' ? 'selected' : ''}>位移加速度</option>
-                          </select>`;
-            infoText.innerHTML = `注：预警参数可设置为 <b>位移量</b>、<b>位移速度</b> 或 <b>位移加速度</b> 中的某一个。`;
-        } else if (tab === '雷达监测') {
-            selectHtml = `<select class="breathing-select" style="width: 120px;" onchange="window.thresholdModule.state.paramType=this.value; window.thresholdModule.renderCards()">
-                            <option value="平均位移" ${window.thresholdModule.state.paramType === '平均位移' ? 'selected' : ''}>平均位移</option>
-                            <option value="平均速度" ${window.thresholdModule.state.paramType === '平均速度' ? 'selected' : ''}>平均速度</option>
-                            <option value="平均加速度" ${window.thresholdModule.state.paramType === '平均加速度' ? 'selected' : ''}>平均加速度</option>
-                          </select>`;
-            infoText.innerHTML = `注：预警参数可设置为 <b>平均位移</b>、<b>平均速度</b> 或 <b>平均加速度</b>，范围为 <b>50m²</b> 的平均值。`;
-        } else if (tab === '深部位移') {
-            selectHtml = `<input type="text" value="单位时间位移量" readonly class="breathing-input text-center" style="width: 120px;">`;
-        } else if (tab === '应力监测') {
-            selectHtml = `<select class="breathing-select" style="width: 120px;" onchange="window.thresholdModule.state.paramType=this.value; window.thresholdModule.renderCards()">
-                            <option value="累积应力" ${window.thresholdModule.state.paramType === '累积应力' ? 'selected' : ''}>累积应力</option>
-                            <option value="突变应力" ${window.thresholdModule.state.paramType === '突变应力' ? 'selected' : ''}>突变应力</option>
-                          </select>`;
-        }
+        // 自动预警布局：左侧单选+筛选器，右侧保存按钮
         headerContainer.innerHTML = `
-            <div class="threshold-selector flex-align-center gap-20">
-                <div class="radio-group flex-align-center gap-12">
-                    <label class="radio-label"><input type="radio" name="warnType" value="auto" class="breathing-radio" onchange="window.thresholdModule.toggleMode('auto')"> 自动预警</label>
-                    <label class="radio-label"><input type="radio" name="warnType" value="threshold" checked class="breathing-radio" onchange="window.thresholdModule.toggleMode('threshold')"> 阈值预警</label>
-                </div>
-                <div class="thick-divider-y"></div>
-                <div class="flex-align-center gap-10">
-                    <span class="form-label">预警参数类型:</span>
-                    <div id="param-select-container">${selectHtml}</div>
-                </div>
-                <div id="radar-area-box" class="flex-align-center gap-8" style="display:${tab === '雷达监测' ? 'flex' : 'none'};">
-                    <span class="form-label">预警评估范围:</span>
-                    <div class="input-with-unit"><input type="number" value="50" class="breathing-input-left" id="radar-eval-area"><span class="unit-addon">m²</span></div>
-                </div>
-            </div>
-            <div class="config-actions flex-align-center gap-12">
-                <div class="flex-align-center gap-8" style="border-right: 1px solid rgba(28, 61, 144, 0.1); padding-right: 12px;">
-                    <span class="form-label" style="font-size: 13px;">设置目标:</span>
-                    <select class="breathing-select" style="width: 85px;" onchange="window.thresholdModule.updateTarget(this.value)">
-                        <option value="global" ${window.thresholdModule.state.targetLevel === 'global' ? 'selected' : ''}>全局</option>
-                        <option value="region" ${window.thresholdModule.state.targetLevel === 'region' ? 'selected' : ''}>区域</option>
-                        <option value="line" ${window.thresholdModule.state.targetLevel === 'line' ? 'selected' : ''}>监测线</option>
-                        <option value="point" ${window.thresholdModule.state.targetLevel === 'point' ? 'selected' : ''}>监测点</option>
-                    </select>
-                    <div id="sub-target-container"></div>
+            <div class="flex-between" style="width: 100%;">
+                <div class="flex-align-center gap-20" style="flex-wrap: wrap;">
+                    ${radioGroupHtml}
+                    <div class="thick-divider-y" style="height: 24px;"></div>
+                    ${leftContentHtml}
                 </div>
                 <button class="primary-btn" onclick="window.thresholdModule.save()">保存参数</button>
             </div>
         `;
-        document.getElementById('info-tip-box').style.display = ['GNSS', '雷达监测'].includes(tab) ? 'flex' : 'none';
-        window.thresholdModule.updateTarget(window.thresholdModule.state.targetLevel);
-    },
+        document.getElementById('info-tip-box').style.display = 'flex';
+        return;
+    }
+
+    // ================= 阈值预警模式 =================
+    const tab = window.thresholdModule.state.activeTab;
+    let selectHtml = '';
+    if (tab === 'GNSS') {
+        selectHtml = `<select class="breathing-select" style="width: 120px;" onchange="window.thresholdModule.state.paramType=this.value; window.thresholdModule.renderCards()">
+                        <option value="位移量" ${window.thresholdModule.state.paramType === '位移量' ? 'selected' : ''}>位移量</option>
+                        <option value="位移速度" ${window.thresholdModule.state.paramType === '位移速度' ? 'selected' : ''}>位移速度</option>
+                        <option value="位移加速度" ${window.thresholdModule.state.paramType === '位移加速度' ? 'selected' : ''}>位移加速度</option>
+                      </select>`;
+        infoText.innerHTML = `注：预警参数可设置为 <b>位移量</b>、<b>位移速度</b> 或 <b>位移加速度</b> 中的某一个。`;
+    } else if (tab === '雷达监测') {
+        selectHtml = `<select class="breathing-select" style="width: 120px;" onchange="window.thresholdModule.state.paramType=this.value; window.thresholdModule.renderCards()">
+                        <option value="平均位移" ${window.thresholdModule.state.paramType === '平均位移' ? 'selected' : ''}>平均位移</option>
+                        <option value="平均速度" ${window.thresholdModule.state.paramType === '平均速度' ? 'selected' : ''}>平均速度</option>
+                        <option value="平均加速度" ${window.thresholdModule.state.paramType === '平均加速度' ? 'selected' : ''}>平均加速度</option>
+                      </select>`;
+        infoText.innerHTML = `注：预警参数可设置为 <b>平均位移</b>、<b>平均速度</b> 或 <b>平均加速度</b>，范围为 <b>50m²</b> 的平均值。`;
+    } else if (tab === '深部位移') {
+        selectHtml = `<input type="text" value="单位时间位移量" readonly class="breathing-input text-center" style="width: 120px;">`;
+    } else if (tab === '应力监测') {
+        selectHtml = `<select class="breathing-select" style="width: 120px;" onchange="window.thresholdModule.state.paramType=this.value; window.thresholdModule.renderCards()">
+                        <option value="累积应力" ${window.thresholdModule.state.paramType === '累积应力' ? 'selected' : ''}>累积应力</option>
+                        <option value="突变应力" ${window.thresholdModule.state.paramType === '突变应力' ? 'selected' : ''}>突变应力</option>
+                      </select>`;
+    }
+
+    // 构建左侧区域：单选按钮组 + 预警参数类型 + 设置目标（移入同一行）
+    const leftGroupHtml = `
+        <div class="flex-align-center gap-20">
+            <div class="radio-group flex-align-center gap-12">
+                <label class="radio-label"><input type="radio" name="warnType" value="auto" class="breathing-radio" onchange="window.thresholdModule.toggleMode('auto')"> 自动预警</label>
+                <label class="radio-label"><input type="radio" name="warnType" value="threshold" checked class="breathing-radio" onchange="window.thresholdModule.toggleMode('threshold')"> 阈值预警</label>
+            </div>
+            <div class="thick-divider-y"></div>
+            <div class="flex-align-center gap-10">
+                <span class="form-label">预警参数类型:</span>
+                <div id="param-select-container">${selectHtml}</div>
+            </div>
+            <div class="flex-align-center gap-8">
+                <span class="form-label" style="font-size: 13px;">设置目标:</span>
+                <select class="breathing-select" style="width: 85px;" onchange="window.thresholdModule.updateTarget(this.value)">
+                    <option value="global" ${window.thresholdModule.state.targetLevel === 'global' ? 'selected' : ''}>全局</option>
+                    <option value="region" ${window.thresholdModule.state.targetLevel === 'region' ? 'selected' : ''}>区域</option>
+                    <option value="line" ${window.thresholdModule.state.targetLevel === 'line' ? 'selected' : ''}>监测线</option>
+                    <option value="point" ${window.thresholdModule.state.targetLevel === 'point' ? 'selected' : ''}>监测点</option>
+                </select>
+                <div id="sub-target-container"></div>
+            </div>
+        </div>
+    `;
+
+    // 雷达评估范围（雷达监测时显示）
+    const radarAreaHtml = (tab === '雷达监测') ? `
+        <div id="radar-area-box" class="flex-align-center gap-8" style="display:flex;">
+            <span class="form-label">预警评估范围:</span>
+            <div class="input-with-unit">
+                <input type="number" value="50" class="breathing-input-left" id="radar-eval-area">
+                <span class="unit-addon">m²</span>
+            </div>
+        </div>
+    ` : `<div id="radar-area-box" style="display:none;"></div>`;
+
+    // 组合：左侧内容 + 右侧保存按钮
+    headerContainer.innerHTML = `
+        <div class="flex-between" style="width: 100%;">
+            <div class="flex-align-center gap-20" style="flex-wrap: wrap;">
+                ${leftGroupHtml}
+                ${radarAreaHtml}
+            </div>
+            <button class="primary-btn" onclick="window.thresholdModule.save()">保存参数</button>
+        </div>
+    `;
+    document.getElementById('info-tip-box').style.display = ['GNSS', '雷达监测'].includes(tab) ? 'flex' : 'none';
+    window.thresholdModule.updateTarget(window.thresholdModule.state.targetLevel);
+},
 
     updateTarget: (level) => {
         window.thresholdModule.state.targetLevel = level;
