@@ -541,21 +541,27 @@ const mapFilterModule = {
   allTypes: ['GNSS', 'DEEP', 'RADAR', 'SURFACE', 'CRACK', 'FIRE', 'WATER', 'GROUND', 'STRESS', 'VIB', 'SAT'],
   radarTargetMapping: { '西帮': ['东帮'], '东帮': ['西帮'], '南帮': ['北帮'], '北帮': ['南帮'], '中央区': ['中央区', '北帮', '南帮'] },
 
-  init() {
+init() {
     window.addEventListener('click', (e) => {
       if (!e.target.closest('.filter-group') && !e.target.closest('.custom-dropdown-content')) {
         document.querySelectorAll('.custom-dropdown-content').forEach(d => d.style.display = 'none');
       }
     });
+    // 默认激活 GNSS 监测类型
+    this.activeTypes.add('GNSS');
     const allRegions = ['全部', '北帮', '南帮', '东帮', '西帮', '中央区'];
     const allLines = ['全部', '1号线', '2号线', '3号线', '4号线'];
-    const allGnssIds = Object.keys(mapModule.pMeta).filter(id => mapModule.pMeta[id].type === 'GNSS');
-    this.selectedRegions = [...allRegions];
-    this.selectedLines = [...allLines];
-    this.selectedPoints = [...allGnssIds];
-    this.activeTypes.add('GNSS');
+    // 初始化选中点：所有当前激活类型（GNSS）且非遥感的点
+    const allActiveIds = Object.keys(mapModule.pMeta).filter(id => {
+      const meta = mapModule.pMeta[id];
+      return this.activeTypes.has(meta.type) && meta.type !== 'SAT';
+    });
+    this.selectedPoints = [...allActiveIds];
+    // 确保区域和监测线也初始化为全部
+    this.selectedRegions = ['全部', '北帮', '南帮', '东帮', '西帮', '中央区'];
+    this.selectedLines = ['全部', '1号线', '2号线', '3号线', '4号线'];
     this.syncUI();
-  },
+},
 
   toggleDropdown(id, e) {
     if (e) e.stopPropagation();
@@ -590,14 +596,28 @@ const mapFilterModule = {
     container.innerHTML = html;
   },
 
-  getDisplayPoints(filterVal = '') {
-    const allGnss = Object.keys(mapModule.pMeta).filter(id => mapModule.pMeta[id].type === 'GNSS').map(id => ({ id, ...mapModule.pMeta[id] }));
-    let list = (this.selectedRegions.includes('全部') || this.selectedRegions.length === 0) ? allGnss : allGnss.filter(p => this.selectedRegions.includes(p.region));
-    if (filterVal && filterVal !== '全部' && !filterVal.includes('、')) {
-      list = list.filter(p => p.deviceId.toLowerCase().includes(filterVal.toLowerCase()) || p.deviceId.replace('GNSS','').includes(filterVal));
-    }
-    return list;
-  },
+getDisplayPoints(filterVal = '') {
+  // 获取所有符合当前激活设备类型的点
+  let allPoints = [];
+  for (const id of Object.keys(mapModule.pMeta)) {
+    const meta = mapModule.pMeta[id];
+    // 如果该设备类型未被激活，则跳过
+    if (!this.activeTypes.has(meta.type)) continue;
+    // 排除 SAT 类型（遥感叠加层，不需要作为点位选择）
+    if (meta.type === 'SAT') continue;
+    allPoints.push({ id, ...meta });
+  }
+  // 按区域筛选
+  let list = (this.selectedRegions.includes('全部') || this.selectedRegions.length === 0)
+    ? allPoints
+    : allPoints.filter(p => this.selectedRegions.includes(p.region));
+  // 按输入的编号/名称模糊筛选
+  if (filterVal && filterVal !== '全部' && !filterVal.includes('、')) {
+    const lowerVal = filterVal.toLowerCase();
+    list = list.filter(p => p.deviceId.toLowerCase().includes(lowerVal));
+  }
+  return list;
+},
 
   renderPoints(filterVal = '') {
     const container = document.getElementById('map-point-dropdown');
@@ -617,33 +637,64 @@ const mapFilterModule = {
     if (cb) { cb.checked = !cb.checked; type === 'region' ? this.handleRegionChange(cb) : this.handlePointChange(cb); }
   },
 
-  handleRegionChange(cb) {
+handleRegionChange(cb) {
     const val = cb.value;
     const allRegions = ['北帮', '南帮', '东帮', '西帮', '中央区'];
-    const allGnssIds = Object.keys(mapModule.pMeta).filter(id => mapModule.pMeta[id].type === 'GNSS');
     const regToLineMap = { '北帮': '1号线', '南帮': '2号线', '东帮': '3号线', '西帮': '4号线' };
+
+    // 获取当前所有激活类型（非 SAT）的点
+    const getAllActivePoints = () => {
+      const points = [];
+      for (const id of Object.keys(mapModule.pMeta)) {
+        const meta = mapModule.pMeta[id];
+        if (meta.type !== 'SAT' && this.activeTypes.has(meta.type)) {
+          points.push(id);
+        }
+      }
+      return points;
+    };
+
     if (val === '全部') {
-      if (cb.checked) { this.selectedRegions = ['全部', ...allRegions]; this.selectedPoints = [...allGnssIds]; this.selectedLines = ['全部', '1号线', '2号线', '3号线', '4号线']; }
-      else { this.selectedRegions = []; this.selectedPoints = []; this.selectedLines = []; }
+      if (cb.checked) {
+        this.selectedRegions = ['全部', ...allRegions];
+        this.selectedPoints = getAllActivePoints();  // 全选所有激活类型的点
+        this.selectedLines = ['全部', '1号线', '2号线', '3号线', '4号线'];
+      } else {
+        this.selectedRegions = [];
+        this.selectedPoints = [];
+        this.selectedLines = [];
+      }
     } else {
       if (cb.checked) {
         this.selectedRegions = this.selectedRegions.filter(r => r !== '全部');
         if (!this.selectedRegions.includes(val)) this.selectedRegions.push(val);
+        // 区域关联的监测线（仅影响 GNSS 点的连线筛选）
         const lineName = regToLineMap[val];
         if (lineName && !this.selectedLines.includes(lineName)) this.selectedLines.push(lineName);
-        const lineData = connectionModule.detectionLines.find(l => l.name === lineName);
-        if (lineData) lineData.points.forEach(p => { if (!this.selectedPoints.includes(p.id)) this.selectedPoints.push(p.id); });
+        // 将该区域下所有激活类型的点加入 selectedPoints
+        const regionPoints = Object.keys(mapModule.pMeta).filter(id => {
+          const meta = mapModule.pMeta[id];
+          return meta.region === val && meta.type !== 'SAT' && this.activeTypes.has(meta.type);
+        });
+        regionPoints.forEach(id => {
+          if (!this.selectedPoints.includes(id)) this.selectedPoints.push(id);
+        });
         if (this.selectedRegions.length === 5) this.selectedRegions.push('全部');
       } else {
         this.selectedRegions = this.selectedRegions.filter(r => r !== val && r !== '全部');
-        const regionPoints = allGnssIds.filter(id => mapModule.pMeta[id].region === val);
+        // 移除该区域下所有激活类型的点
+        const regionPoints = Object.keys(mapModule.pMeta).filter(id => {
+          const meta = mapModule.pMeta[id];
+          return meta.region === val && meta.type !== 'SAT' && this.activeTypes.has(meta.type);
+        });
         this.selectedPoints = this.selectedPoints.filter(id => !regionPoints.includes(id));
         const line = regToLineMap[val];
         if (line) this.selectedLines = this.selectedLines.filter(l => l !== line && l !== '全部');
       }
     }
-    this.renderLines(); this.syncUI();
-  },
+    this.renderLines();
+    this.syncUI();
+},
 
   handleLineChange(cb) {
     const val = cb.value, isChecked = cb.checked;
@@ -695,30 +746,45 @@ const mapFilterModule = {
 
   filterPointList(val) { this.renderPoints(val); },
 
-  handlePointInput() {
-    const input = document.getElementById('map-point-input');
-    if (!input) return;
-    const val = input.value.trim();
-    const allGnss = Object.keys(mapModule.pMeta).filter(id => mapModule.pMeta[id].type === 'GNSS');
-    if (val === '' || val === '全部' || val === '全部监测点') {
-      if (val === '全部' || val === '全部监测点') { this.selectedPoints = [...allGnss]; this.selectedRegions = ['全部', '北帮', '南帮', '东帮', '西帮', '中央区']; }
-      else { this.selectedPoints = []; this.selectedRegions = []; }
-      this.syncUI(); return;
+handlePointInput() {
+  const input = document.getElementById('map-point-input');
+  if (!input) return;
+  const val = input.value.trim();
+  // 获取当前所有在线且属于激活类型的设备点
+  let allActivePoints = [];
+  for (const id of Object.keys(mapModule.pMeta)) {
+    const meta = mapModule.pMeta[id];
+    if (!meta.isOnline) continue;
+    if (!this.activeTypes.has(meta.type)) continue;
+    if (meta.type === 'SAT') continue;
+    allActivePoints.push({ id, ...meta });
+  }
+  if (val === '' || val === '全部' || val === '全部监测点') {
+    if (val === '全部' || val === '全部监测点') {
+      this.selectedPoints = allActivePoints.map(p => p.id);
+      this.selectedRegions = ['全部', '北帮', '南帮', '东帮', '西帮', '中央区'];
+    } else {
+      this.selectedPoints = [];
+      this.selectedRegions = [];
     }
-    const parts = val.split(/[、,，\s]/).map(p => p.trim()).filter(p => p !== '');
-    const newSelectedPoints = [], newSelectedRegions = [];
-    parts.forEach(part => {
-      let targetNum = part.replace(/GNSS/i, '');
-      const matchedId = allGnss.find(id => mapModule.pMeta[id].deviceId.replace('GNSS', '') === targetNum);
-      if (matchedId) {
-        newSelectedPoints.push(matchedId);
-        if (!newSelectedRegions.includes(mapModule.pMeta[matchedId].region)) newSelectedRegions.push(mapModule.pMeta[matchedId].region);
-      }
-    });
-    this.selectedPoints = newSelectedPoints; this.selectedRegions = newSelectedRegions;
-    if (this.selectedRegions.length === 5) this.selectedRegions.push('全部');
     this.syncUI();
-  },
+    return;
+  }
+  const parts = val.split(/[、,，\s]/).map(p => p.trim()).filter(p => p !== '');
+  const newSelectedPoints = [], newSelectedRegions = [];
+  parts.forEach(part => {
+    // 模糊匹配 deviceId（如 "GNSS11" 或 "RADAR3" 或直接输入编号部分）
+    const matchedPoint = allActivePoints.find(p => p.deviceId.toLowerCase() === part.toLowerCase() || p.deviceId.toLowerCase().includes(part.toLowerCase()));
+    if (matchedPoint) {
+      newSelectedPoints.push(matchedPoint.id);
+      if (!newSelectedRegions.includes(matchedPoint.region)) newSelectedRegions.push(matchedPoint.region);
+    }
+  });
+  this.selectedPoints = newSelectedPoints;
+  this.selectedRegions = newSelectedRegions;
+  if (this.selectedRegions.length === 5) this.selectedRegions.push('全部');
+  this.syncUI();
+},
 
   toggleDrawer() {
     this.isOpen = !this.isOpen;
@@ -726,18 +792,44 @@ const mapFilterModule = {
     document.getElementById('drawer-arrow').innerText = this.isOpen ? '▼' : '▲';
   },
 
-  toggle(type, el) {
-    if (type === '全部') {
-      if (this.activeTypes.size === this.allTypes.length) { this.activeTypes.clear(); this.removeRadarClouds(); this.removeSatLayer(); mapModule.selectedMapTypes = mapModule.selectedMapTypes.filter(t => t !== 'uav'); }
-      else { this.allTypes.forEach(t => this.activeTypes.add(t)); this.renderSatLayer(); }
+toggle(type, el) {
+  if (type === '全部') {
+    if (this.activeTypes.size === this.allTypes.length) {
+      this.activeTypes.clear();
+      this.removeRadarClouds();
+      this.removeSatLayer();
+      mapModule.selectedMapTypes = mapModule.selectedMapTypes.filter(t => t !== 'uav');
+      this.selectedPoints = [];  // 清空所有点
     } else {
-      if (this.activeTypes.has(type)) { this.activeTypes.delete(type); if (type === 'SAT') this.removeSatLayer(); if (type === 'RADAR') { this.removeRadarClouds(); document.querySelector('.radar-plus')?.classList.remove('cloud-active'); } }
-      else { this.activeTypes.add(type); if (type === 'SAT') this.renderSatLayer(); }
+      this.allTypes.forEach(t => this.activeTypes.add(t));
+      this.renderSatLayer();
+      // 添加所有类型的点
+      this.selectedPoints = Object.keys(mapModule.pMeta).filter(id => {
+        const meta = mapModule.pMeta[id];
+        return this.activeTypes.has(meta.type) && meta.type !== 'SAT';
+      });
     }
-    if (window.dashModule) window.dashModule.currentPage = 1;
-    this.syncUI();
-  },
-
+  } else {
+    if (this.activeTypes.has(type)) {
+      this.activeTypes.delete(type);
+      if (type === 'SAT') this.removeSatLayer();
+      if (type === 'RADAR') { this.removeRadarClouds(); document.querySelector('.radar-plus')?.classList.remove('cloud-active'); }
+      // 从 selectedPoints 中移除该类型的所有点
+      this.selectedPoints = this.selectedPoints.filter(id => mapModule.pMeta[id].type !== type);
+    } else {
+      this.activeTypes.add(type);
+      if (type === 'SAT') this.renderSatLayer();
+      // 添加该类型的所有点到 selectedPoints
+      const newPoints = Object.keys(mapModule.pMeta).filter(id => {
+        const meta = mapModule.pMeta[id];
+        return meta.type === type && meta.type !== 'SAT';
+      });
+      this.selectedPoints.push(...newPoints);
+    }
+  }
+  if (window.dashModule) window.dashModule.currentPage = 1;
+  this.syncUI();
+},
   renderSatLayer() { this.removeSatLayer(); const overlay = document.createElement('div'); overlay.className = 'sat-green-overlay'; overlay.id = 'sat-overlay'; document.getElementById('map-canvas').appendChild(overlay); },
   removeSatLayer() { const el = document.getElementById('sat-overlay'); if (el) el.remove(); },
 
@@ -803,7 +895,7 @@ const mapFilterModule = {
         if (isFullRegionSelected) isVisibilityMatch = true;
         else { const targets = this.radarTargetMapping[meta.region] || []; isVisibilityMatch = this.selectedRegions.some(reg => targets.includes(reg)); }
       } else { isVisibilityMatch = isFullRegionSelected || this.selectedRegions.includes(meta.region); }
-      const isPointChecked = (meta.type === 'GNSS') ? this.selectedPoints.includes(p.id) : true;
+      const isPointChecked = this.selectedPoints.includes(p.id);
       p.style.display = (isVisibilityMatch && isTypeActive && isPointChecked) ? 'block' : 'none';
     });
     const plusBtn = document.querySelector('.radar-plus');

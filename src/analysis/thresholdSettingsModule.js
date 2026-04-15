@@ -9,6 +9,7 @@ export function getThresholdModalMarkup() {
                     <span class="blue-brand-bar"></span>
                     <h3 class="main-title">预警阈值设置系统</h3>
                 </div>
+                <div class="mode-switch-group"></div>
                 <span class="modal-close-new" onclick="window.thresholdModule.close()">×</span>
             </div>
 
@@ -281,22 +282,32 @@ window.thresholdModule = {
         window.thresholdModule.renderCards();
     },
 
+    // 渲染标题栏右侧的模式切换按钮
+    renderModeSwitch: () => {
+        const container = document.querySelector('.threshold-modal-header .mode-switch-group');
+        if (!container) return;
+        const warningType = window.thresholdModule.state.warningType;
+        container.innerHTML = `
+            <div class="radio-group flex-align-center gap-12">
+                <label class="radio-label"><input type="radio" name="warnType" value="threshold" class="breathing-radio" ${warningType === 'threshold' ? 'checked' : ''} onchange="window.thresholdModule.toggleMode('threshold')"> 阈值预警</label>
+                <label class="radio-label"><input type="radio" name="warnType" value="auto" class="breathing-radio" ${warningType === 'auto' ? 'checked' : ''} onchange="window.thresholdModule.toggleMode('auto')"> 自动预警</label>
+            </div>
+        `;
+    },
+
     renderControls: () => {
         const headerContainer = document.getElementById('threshold-config-header');
         const infoText = document.getElementById('info-tip-text');
         if (!headerContainer) return;
 
+        // 先渲染标题栏的模式切换按钮
+        window.thresholdModule.renderModeSwitch();
+
         const warningType = window.thresholdModule.state.warningType;
         const autoMode = window.thresholdModule.state.autoWarningMode;
 
         if (warningType === 'auto') {
-            // 自动预警模式（保持不变，略）
-            const radioGroupHtml = `
-                <div class="radio-group flex-align-center gap-12">
-                    <label class="radio-label"><input type="radio" name="warnType" value="threshold" class="breathing-radio" onchange="window.thresholdModule.toggleMode('threshold')"> 阈值预警</label>
-                    <label class="radio-label"><input type="radio" name="warnType" value="auto" checked class="breathing-radio" onchange="window.thresholdModule.toggleMode('auto')"> 自动预警</label>
-                </div>
-            `;
+            // 自动预警模式（不再包含单选按钮组）
             let leftContentHtml = '';
             if (autoMode === 'single') {
                 const regions = window.thresholdModule.getAllRegions();
@@ -324,7 +335,7 @@ window.thresholdModule = {
             }
             headerContainer.innerHTML = `
                 <div class="flex-between" style="width: 100%;">
-                    <div class="flex-align-center gap-20" style="flex-wrap: wrap;">${radioGroupHtml}<div class="thick-divider-y" style="height: 24px;"></div>${leftContentHtml}</div>
+                    <div class="flex-align-center gap-20" style="flex-wrap: wrap;">${leftContentHtml}</div>
                     <button class="primary-btn" onclick="window.thresholdModule.save()">保存参数</button>
                 </div>
             `;
@@ -405,14 +416,9 @@ window.thresholdModule = {
             infoText.innerHTML = `注：预警参数可选<b>速度(mm/h)</b>、<b>位移(mm)</b>、<b>累积位移(mm)</b>、<b>加速度(mm/h²)</b>或<b>切线角(°)</b>，右侧将为各等级分别设置对应分量的阈值。`;
         }
 
-        // 构建左侧区域
+        // 构建左侧区域（移除了单选按钮组和分隔线）
         const leftGroupHtml = `
             <div class="flex-align-center gap-20">
-                <div class="radio-group flex-align-center gap-12">
-                    <label class="radio-label"><input type="radio" name="warnType" value="threshold" checked class="breathing-radio" onchange="window.thresholdModule.toggleMode('threshold')"> 阈值预警</label>
-                    <label class="radio-label"><input type="radio" name="warnType" value="auto" class="breathing-radio" onchange="window.thresholdModule.toggleMode('auto')"> 自动预警</label>
-                </div>
-                <div class="thick-divider-y"></div>
                 ${extraControlsHtml ? `<div class="flex-align-center gap-8">${extraControlsHtml}</div>` : ''}
                 <div class="flex-align-center gap-10">
                     <span class="form-label">预警参数类型:</span>

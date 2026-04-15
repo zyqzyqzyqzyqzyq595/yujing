@@ -938,3 +938,56 @@
     flex-shrink: 0 !important;
 }
 
+/* =========================================================
+   预警设置弹窗 - 标题栏右侧模式切换按钮组样式
+   ========================================================= */
+.threshold-modal-header .mode-switch-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+    margin-right: 20px;
+}
+
+.threshold-modal-header .mode-switch-group .radio-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.threshold-modal-header .mode-switch-group .radio-label {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #333;
+}
+
+.threshold-modal-header .mode-switch-group .breathing-radio {
+    accent-color: #1c64f2;
+    transform: scale(1.1);
+}
+
+/* =========================================================
+   预警设置弹窗 - 标题栏布局调整：单选按钮紧跟标题右侧，关闭按钮右对齐
+   ========================================================= */
+
+/* 覆盖头部容器的对齐方式，改为默认左对齐 */
+.threshold-modal-header {
+    justify-content: flex-start !important;
+}
+
+/* 模式切换按钮组：与标题组保持 20px 间距，不推到右侧 */
+.threshold-modal-header .mode-switch-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: 20px;   /* 与标题组的间距 */
+    margin-right: 0;
+}
+
+/* 关闭按钮推到最右侧 */
+.threshold-modal-header .modal-close-new {
+    margin-left: auto !important;
+}
