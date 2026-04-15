@@ -161,12 +161,12 @@
           <span>📡 雷达监测</span>
           <span class="radar-plus" @click.stop="mapFilterModule.toggleRadarCloud($event, $event.currentTarget)">+</span>
         </div>
-        <div class="filter-item" data-type="SURFACE" @click="mapFilterModule.toggle('SURFACE', $event.currentTarget)">📐 地质写实</div>
+        <div class="filter-item" data-type="SURFACE" @click="mapFilterModule.toggle('SURFACE', $event.currentTarget)">📐 裂缝写实</div>
         <div class="filter-item" data-type="CRACK" @click="mapFilterModule.toggle('CRACK', $event.currentTarget)">🧱 裂缝监测</div>
         <div class="filter-item" data-type="FIRE" @click="mapFilterModule.toggle('FIRE', $event.currentTarget)">🔥 煤自燃监测</div>
         <div class="filter-item" data-type="WATER" @click="mapFilterModule.toggle('WATER', $event.currentTarget)">💧 降雨监测</div>
         <div class="filter-item" data-type="GROUND" @click="mapFilterModule.toggle('GROUND', $event.currentTarget)">🌍 地下水监测</div>
-        <div class="filter-item" data-type="STRESS" @click="mapFilterModule.toggle('STRESS', $event.currentTarget)">📊 应力监测</div>
+        <div class="filter-item" data-type="STRESS" @click="mapFilterModule.toggle('STRESS', $event.currentTarget)">📊 地下应力监测</div>
         <div class="filter-item" data-type="VIB" @click="mapFilterModule.toggle('VIB', $event.currentTarget)">💥 爆破震动监测</div>
         <div class="filter-item" data-type="SAT" @click="mapFilterModule.toggle('SAT', $event.currentTarget)">🛸 遥感监测</div>
         <div class="filter-item all-btn" @click="mapFilterModule.toggle('全部', $event.currentTarget)">🔳 全部显示</div>

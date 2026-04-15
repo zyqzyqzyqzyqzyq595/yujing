@@ -842,3 +842,99 @@
     align-items: center !important;
     gap: 10px !important;
 }
+
+/* =========================================================
+   预警阈值设置 - 布局紧凑优化（增加间距，自适应高度）
+   ========================================================= */
+
+/* 右侧内容区增加内边距，释放空间 */
+.threshold-modal-body .tab-content-container {
+    padding: 20px 28px !important;  /* 原为 16px 24px，适当增加左右内边距 */
+}
+
+/* 卡片网格间距加大 */
+.threshold-modal-body .config-cards {
+    gap: 20px !important;          /* 原为 16px，增加卡片之间间距 */
+}
+
+/* 卡片高度自适应，避免内容溢出或拥挤 */
+.threshold-modal-body .threshold-card {
+    height: auto !important;        /* 原固定高度 165px，改为自动 */
+    min-height: 160px;              /* 保证最小高度，防止过小 */
+    margin-bottom: 0;
+}
+
+/* 卡片主体增加行间距 */
+.threshold-modal-body .card-body {
+    gap: 12px !important;           /* 原为 10px，增加行间距 */
+    padding: 14px 16px !important;  /* 原为 12px 14px，适当增加内边距 */
+}
+
+/* 输入行水平间距加大 */
+.threshold-modal-body .input-row {
+    gap: 10px !important;           /* 原为 6px，增加水平间距 */
+    margin-bottom: 2px;
+}
+
+/* 输入框宽度略微增加，改善输入体验 */
+.threshold-modal-body .breathing-num {
+    width: 70px !important;         /* 原为 flex:1 导致宽度不定，设置固定宽度更整齐 */
+    min-width: 70px;
+}
+
+/* 标签宽度统一，避免参差不齐 */
+.threshold-modal-body .input-row label {
+    width: 80px !important;         /* 原为 55px，加宽以容纳较长文字 */
+}
+
+/* 单位标签宽度统一 */
+.threshold-modal-body .input-row .unit {
+    width: 45px !important;         /* 原为 35px，略微加宽 */
+    text-align: left;
+}
+
+/* 卡片标题行增加下边距 */
+.threshold-modal-body .card-title {
+    padding: 12px 14px !important;  /* 原为 10px 14px */
+    margin-bottom: 0;
+}
+
+/* 对于GNSS特有的连续2次标签，适当缩小字体避免换行 */
+.threshold-modal-body .sub-cond {
+    font-size: 10px;
+    white-space: nowrap;
+}
+/* 将注释栏固定在右侧内容区底部 */
+.threshold-modal-body .tab-content-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;           /* 确保容器占满高度 */
+}
+
+.threshold-modal-body #cards-container {
+    flex: 1 1 auto;        /* 占据剩余空间，将下方内容推到底部 */
+}
+
+.threshold-modal-body .info-wrap {
+    margin-top: auto;      /* 自动上边距，使其紧贴底部 */
+    flex-shrink: 0;        /* 防止被压缩 */
+}
+
+/* 强制将注释栏推到底部 */
+.threshold-modal-body .tab-content-container {
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
+    justify-content: flex-start !important;
+}
+
+.threshold-modal-body #cards-container {
+    flex: 1 1 auto !important;
+    margin-bottom: 16px !important;
+}
+
+.threshold-modal-body .info-wrap {
+    margin-top: auto !important;
+    flex-shrink: 0 !important;
+}
+
