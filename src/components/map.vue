@@ -1,16 +1,16 @@
+```html
 <template>
-  <!-- 结构与 COMBINE/index.html#main-map-section 一致，事件已改为 Vue 绑定 -->
   <section class="map-module" id="main-map-section">
-<div style="position: absolute; top: 55px; left: 15px; z-index: 100; display: inline-block;">
-  <button id="map-view-btn" class="map-btn breathing-btn rounded-btn" @click="mapModule.toggleViewDropdown($event)">
-    <span id="map-view-label">地质模型</span> ▼
-  </button>
-  <div id="map-view-dropdown" class="custom-dropdown-content" style="left: 0;"></div>
-</div>
+    <div style="position: absolute; top: 55px; left: 15px; z-index: 100; display: inline-block;">
+      <button id="map-view-btn" class="map-btn breathing-btn rounded-btn" @click="mapModule.toggleViewDropdown($event)">
+        <span id="map-view-label">地质模型</span> ▼
+      </button>
+      <div id="map-view-dropdown" class="custom-dropdown-content" style="left: 0;"></div>
+    </div>
 
-<button id="reset-gnss-btn" class="breathing-btn rounded-circle-btn" type="button" @click="mapModule.resetView()">
-  ↺
-</button>
+    <button id="reset-gnss-btn" class="breathing-btn rounded-circle-btn" type="button" @click="mapModule.resetView()">
+      ↺
+    </button>
 
     <div class="draw-toolbar" id="draw-toolbar">
       <span class="draw-tip">【逻辑互斥】左键点选监测点连线 或 Ctrl+左键拖拽划线（两者不可混用）</span>
@@ -132,11 +132,11 @@
           <table class="dash-table">
             <thead>
               <tr>
-<th width="60" style="text-align: center; vertical-align: middle;">序号</th>
-<th style="text-align: center; vertical-align: middle;">区域</th>
-<th style="text-align: center; vertical-align: middle;">设备编号</th>
-<th style="text-align: center; vertical-align: middle;">离线时间</th>
-<th style="text-align: center; vertical-align: middle;">所属厂商</th>
+                <th width="60" style="text-align: center; vertical-align: middle;">序号</th>
+                <th style="text-align: center; vertical-align: middle;">区域</th>
+                <th style="text-align: center; vertical-align: middle;">设备编号</th>
+                <th style="text-align: center; vertical-align: middle;">离线时间</th>
+                <th style="text-align: center; vertical-align: middle;">所属厂商</th>
               </tr>
             </thead>
             <tbody id="offline-table-body"></tbody>
@@ -195,7 +195,7 @@ const timeUtils = {
   },
   updateMaxConstraints() {
     const nowStr = this.formatISO(new Date());
-    ['date-start', 'date-end', 'an-start', 'an-end', 'deep-an-start', 'deep-an-end', 'radar-an-start', 'radar-an-end', 'crack-an-start', 'crack-an-end', 'fire-an-start', 'fire-an-end', 'water-an-start', 'water-an-end', 'ground-an-start', 'ground-an-end', 'yingli-an-start', 'yingli-an-end', 'vib-an-start', 'vib-an-end'].forEach(id => {
+    ['date-start', 'date-end'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.setAttribute('max', nowStr);
     });
@@ -212,8 +212,28 @@ const mapModule = {
   radarList: [],
   virtualPoints: {},
   selectedMapTypes: ['geology'],
+  timeRange: null, // 新增：保存当前的时间筛选范围用于右侧联动
 
-  init() {
+  // 新增：全局图片放大预览函数
+  showImagePreview(src) {
+    let overlay = document.getElementById('global-img-preview-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'global-img-preview-overlay';
+        overlay.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.85); z-index:999999; display:flex; align-items:center; justify-content:center; cursor:zoom-out; backdrop-filter:blur(5px);';
+        overlay.onclick = function() { this.style.display = 'none'; };
+        
+        const img = document.createElement('img');
+        img.id = 'global-preview-img-target';
+        img.style.cssText = 'max-width:90%; max-height:90%; border-radius:8px; box-shadow:0 10px 40px rgba(0,0,0,0.5); object-fit:contain;';
+        overlay.appendChild(img);
+        document.body.appendChild(overlay);
+    }
+    document.getElementById('global-preview-img-target').src = src;
+    overlay.style.display = 'flex';
+  },
+
+init() {
     const vp = document.getElementById('map-viewer');
     const cv = document.getElementById('map-canvas');
     const upd = () => cv.style.transform = `translate(${this.pos.x}px, ${this.pos.y}px) scale(${this.scale})`;
@@ -258,6 +278,14 @@ const mapModule = {
       drg = false;
       vp.style.cursor = profileModule.isDrawing ? 'crosshair' : 'grab';
     });
+
+    // 核心修改：初始化时间范围（默认更改为过去 7 天内）
+    const now = new Date();
+    let start = new Date();
+    start.setDate(now.getDate() - 7);
+    start.setHours(0, 0, 0, 0);
+    this.timeRange = { start: start, end: now };
+
     this.spawnPoints();
     this.updateMapFilters();
     upd();
@@ -270,16 +298,23 @@ const mapModule = {
 
   spawnPoints() {
     const cv = document.getElementById('map-canvas');
+    const tt = document.getElementById('map-tooltip');
+    
+    // 核心修改：允许鼠标移动到 tooltip 内部进行交互
+    tt.style.pointerEvents = 'auto'; 
+    tt.onmouseenter = () => { clearTimeout(tt.hideTimer); };
+    tt.onmouseleave = () => { tt.hideTimer = setTimeout(() => { tt.style.display = 'none'; }, 200); };
+
     const icons = { 'GNSS': '📍', 'DEEP': '⚓', 'RADAR': '📡', 'SURFACE': '📐', 'CRACK': '🧱', 'FIRE': '🔥', 'WATER': '💧', 'GROUND': '🌍', 'STRESS': '📊', 'VIB': '💥', 'SAT': '🛸' };
     const types = Object.keys(icons);
     const regionDefinitions = [
-      { name: '北帮', xRange: [800, 2200], yRange: [200, 600], lineAxis: { type: 'Y', val: 350 } },
+      { name: '北帮', xRange:[800, 2200], yRange: [200, 600], lineAxis: { type: 'Y', val: 350 } },
       { name: '南帮', xRange: [800, 2200], yRange: [1900, 2300], lineAxis: { type: 'Y', val: 2150 } },
-      { name: '西帮', xRange: [200, 700], yRange: [800, 1700], lineAxis: { type: 'X', val: 400 } },
-      { name: '东帮', xRange: [2300, 2800], yRange: [800, 1700], lineAxis: { type: 'X', val: 2600 } },
+      { name: '西帮', xRange:[200, 700], yRange: [800, 1700], lineAxis: { type: 'X', val: 400 } },
+      { name: '东帮', xRange:[2300, 2800], yRange: [800, 1700], lineAxis: { type: 'X', val: 2600 } },
       { name: '中央区', xRange: [1100, 1900], yRange: [1000, 1500], lineAxis: null }
     ];
-    const placedPoints = [];
+    const placedPoints =[];
     const minDist = 60;
     const gnssCountPerRegion = { '北帮': 0, '南帮': 0, '东帮': 0, '西帮': 0, '中央区': 0 };
     let redGnssCount = 0;
@@ -327,15 +362,23 @@ const mapModule = {
       p.className = `point-obj type-${type} ${(isOnline && alarmIdx === 0) ? 'breathe' : ''}`;
       p.style.left = posX + 'px';
       p.style.top = posY + 'px';
-      const colors = ['#F57676', '#FFA500', '#fadb14', '#66B1FF', '#71C446'];
+      const colors =['#F57676', '#FFA500', '#fadb14', '#66B1FF', '#71C446'];
       const targetColor = isOnline ? colors[alarmIdx] : '#999';
       p.style.backgroundColor = targetColor;
       p.style.color = targetColor;
       const deviceId = `${type}${i}`;
       const stressSub = i % 2 === 0 ? '锚索应力' : '土压力计';
+
+      // 核心修改：生成持久化的 warnTime（过去 30 天内）
+      const now = new Date();
+      const warnTime = new Date(now);
+      warnTime.setDate(now.getDate() - Math.floor(Math.random() * 30));
+      warnTime.setHours(Math.floor(Math.random() * 24), Math.floor(Math.random() * 60), 0, 0);
+
       this.pMeta[p.id] = type === 'STRESS'
-        ? { id: p.id, type, alarmIdx, isOnline, deviceId, region: regDef.name, isOnDetectionLine, subType: stressSub }
-        : { id: p.id, type, alarmIdx, isOnline, deviceId, region: regDef.name, isOnDetectionLine };
+        ? { id: p.id, type, alarmIdx, isOnline, deviceId, region: regDef.name, isOnDetectionLine, subType: stressSub, warnTime }
+        : { id: p.id, type, alarmIdx, isOnline, deviceId, region: regDef.name, isOnDetectionLine, warnTime };
+
       p.innerHTML = `<div class="point-bubble"><span>${icons[type]}</span></div><div class="point-id">${deviceId}</div>`;
       if (type === 'GNSS' && isOnline) {
         const arrow = document.createElement('div');
@@ -356,20 +399,23 @@ const mapModule = {
         else if (isOnline && type === 'STRESS') { dashModule.focusWithRange(p.id); getYingliAnalysisModule().open(this.pMeta[p.id]); }
         else if (isOnline && type === 'VIB') { dashModule.focusWithRange(p.id); getVibAnalysisModule().open(this.pMeta[p.id]); }
       };
-// 只有在线设备才绑定悬浮标签
-if (isOnline) {
-    p.onmouseenter = (e) => {
-        const tt = document.getElementById('map-tooltip');
-        tt.style.display = 'block';
-        tt.innerHTML = `<b style="color:#85C6F1;">[${regDef.name}] ${deviceId}</b><hr style='margin:5px 0; opacity:0.2'>${this.getTechData(type, p.id)}`;
-        tt.style.left = e.clientX + 15 + 'px';
-        tt.style.top = e.clientY + 15 + 'px';
-    };
-    p.onmouseleave = () => document.getElementById('map-tooltip').style.display = 'none';
-}
+
+      if (isOnline) {
+        // 核心修改：鼠标移入移出加入防抖延时
+        p.onmouseenter = (e) => {
+          clearTimeout(tt.hideTimer);
+          tt.style.display = 'block';
+          tt.innerHTML = `<b style="color:#85C6F1;">[${regDef.name}] ${deviceId}</b><hr style='margin:5px 0; opacity:0.2'>${this.getTechData(type, p.id)}`;
+          tt.style.left = e.clientX + 15 + 'px';
+          tt.style.top = e.clientY + 15 + 'px';
+        };
+        p.onmouseleave = () => {
+          tt.hideTimer = setTimeout(() => { tt.style.display = 'none'; }, 200);
+        };
+      }
       cv.appendChild(p);
     }
-    this.radarList = [];
+    this.radarList =[];
     this.virtualPoints = {};
     const radarSeen = new Set();
     Object.keys(this.pMeta).forEach(pid => {
@@ -407,14 +453,23 @@ getTechData(type, id) {
       'STRESS': `应力/压力: ${(2.5 + speed * 0.15).toFixed(2)} kPa<br>类型: ${meta.subType || '—'}`,
       'VIB': `振动速度峰值: ${speed.toFixed(2)} cm/s<br>主频: ${(10 + (seed % 5)).toFixed(1)} Hz`
     };
-const content = specs[type] || `设备状态: 运行正常<br>当前速度: ${speed.toFixed(2)} mm/h`;
-// 裂缝写实（SURFACE）不显示图片占位符
-if (type !== 'SURFACE') {
-    const placeholder = `<div style="width:100%; height:80px; background:#e0e0e0; border-radius:4px; margin-bottom:8px; display:flex; align-items:center; justify-content:center; color:#666; font-size:12px;">📷 现场抓拍</div>`;
-    return placeholder + content;
-}
-return content;
-},
+    const content = specs[type] || `设备状态: 运行正常<br>当前速度: ${speed.toFixed(2)} mm/h`;
+
+    // 核心修改：将占位符设置为灰色背景，并使用 flex 布局使文字严格垂直+水平居中
+    if (type !== 'SURFACE') {
+      const imgUrl = 'https://img.js.design/assets/img/652613010f36894c798e404b.png';
+      const imgHtml = `
+      <div style="margin-bottom:8px; overflow:hidden; border-radius:4px; border:1px solid rgba(255,255,255,0.15);">
+          <div style="width:100%; height:80px; background-color:#5c6b77; display:flex; align-items:center; justify-content:center; cursor:zoom-in; transition:transform 0.2s;"
+          onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'"
+          onclick="window.mapModule.showImagePreview('${imgUrl}')" title="点击查看现场图片">
+              <span style="color:#ffffff; font-size:12px; letter-spacing:1px; text-shadow:0 1px 2px rgba(0,0,0,0.5);">📷 点击放大查看</span>
+          </div>
+      </div>`;
+      return imgHtml + content;
+    }
+    return content;
+  },
 
   setTime(days, btn) {
     document.querySelectorAll('#time-engine-bar .freq-btn').forEach(b => b.classList.remove('active'));
@@ -431,8 +486,12 @@ return content;
     const endInp = document.getElementById('date-end');
     if (startInp) startInp.value = format(start);
     if (endInp) endInp.value = format(now);
+    
     this.tMultiplier = (now - start) / (24 * 3600000);
+    // 核心修改：保存时间范围并刷新表格
+    this.timeRange = { start: start, end: now };
     this.triggerFlash();
+    if (window.dashModule) window.dashModule.refreshDashboardPanels();
   },
 
   applyCustomTime() {
@@ -455,9 +514,14 @@ return content;
       alert("初始时间不得晚于终止时间");
       return;
     }
+    
     this.tMultiplier = (end - start) / (24 * 3600000);
+    // 核心修改：保存时间范围并刷新表格
+    this.timeRange = { start: start, end: end };
+    
     document.querySelectorAll('#time-engine-bar .freq-btn').forEach(b => b.classList.remove('active'));
     this.triggerFlash();
+    if (window.dashModule) window.dashModule.refreshDashboardPanels();
   },
 
   toggleViewDropdown(e) {
@@ -470,7 +534,7 @@ return content;
   },
 
   renderViewDropdown() {
-    const options = [{ id: 'geology', label: '地质模型' }, { id: 'dtm', label: 'DTM面' }, { id: 'uav', label: '无人机地图' }];
+    const options =[{ id: 'geology', label: '地质模型' }, { id: 'dtm', label: 'DTM面' }, { id: 'uav', label: '无人机地图' }];
     const container = document.getElementById('map-view-dropdown');
     if (!container) return;
     const isAllChecked = options.every(opt => this.selectedMapTypes.includes(opt.id));
@@ -480,7 +544,7 @@ return content;
   },
 
   handleViewTypeChange(cb) {
-    if (cb.value === 'all') this.selectedMapTypes = cb.checked ? ['geology', 'dtm', 'uav'] : [];
+    if (cb.value === 'all') this.selectedMapTypes = cb.checked ?['geology', 'dtm', 'uav'] :[];
     else {
       if (cb.checked) { if (!this.selectedMapTypes.includes(cb.value)) this.selectedMapTypes.push(cb.value); }
       else this.selectedMapTypes = this.selectedMapTypes.filter(t => t !== cb.value);
@@ -546,7 +610,7 @@ const mapFilterModule = {
   selectedRegions: ['全部'],
   selectedPoints: [],
   selectedLines: ['全部'],
-  allTypes: ['GNSS', 'DEEP', 'RADAR', 'SURFACE', 'CRACK', 'FIRE', 'WATER', 'GROUND', 'STRESS', 'VIB', 'SAT'],
+  allTypes:['GNSS', 'DEEP', 'RADAR', 'SURFACE', 'CRACK', 'FIRE', 'WATER', 'GROUND', 'STRESS', 'VIB', 'SAT'],
   radarTargetMapping: { '西帮': ['东帮'], '东帮': ['西帮'], '南帮': ['北帮'], '北帮': ['南帮'], '中央区': ['中央区', '北帮', '南帮'] },
 
 init() {
@@ -558,16 +622,16 @@ init() {
     // 默认激活 GNSS 监测类型
     this.activeTypes.add('GNSS');
     const allRegions = ['全部', '北帮', '南帮', '东帮', '西帮', '中央区'];
-    const allLines = ['全部', '1号线', '2号线', '3号线', '4号线'];
+    const allLines =['全部', '1号线', '2号线', '3号线', '4号线'];
     // 初始化选中点：所有当前激活类型（GNSS）且非遥感的点
     const allActiveIds = Object.keys(mapModule.pMeta).filter(id => {
       const meta = mapModule.pMeta[id];
       return this.activeTypes.has(meta.type) && meta.type !== 'SAT';
     });
-    this.selectedPoints = [...allActiveIds];
+    this.selectedPoints =[...allActiveIds];
     // 确保区域和监测线也初始化为全部
-    this.selectedRegions = ['全部', '北帮', '南帮', '东帮', '西帮', '中央区'];
-    this.selectedLines = ['全部', '1号线', '2号线', '3号线', '4号线'];
+    this.selectedRegions =['全部', '北帮', '南帮', '东帮', '西帮', '中央区'];
+    this.selectedLines =['全部', '1号线', '2号线', '3号线', '4号线'];
     this.syncUI();
 },
 
@@ -586,7 +650,7 @@ init() {
   },
 
   renderRegions() {
-    const regions = ['全部', '北帮', '南帮', '东帮', '西帮', '中央区'];
+    const regions =['全部', '北帮', '南帮', '东帮', '西帮', '中央区'];
     const container = document.getElementById('map-region-dropdown');
     container.innerHTML = regions.map(reg => `<div class="custom-dropdown-item" onclick="mapFilterModule.handleItemClick(this, event, 'region')"><input type="checkbox" value="${reg}" ${this.selectedRegions.includes(reg) ? 'checked' : ''} onchange="mapFilterModule.handleRegionChange(this)"><span style="${reg === '全部' ? 'font-weight:bold; color:#1c3d90;' : ''}">${reg}</span></div>`).join('');
   },
@@ -595,8 +659,8 @@ init() {
     const container = document.getElementById('map-line-dropdown');
     if (!container) return;
     const regToLineMap = { '北帮': '1号线', '南帮': '2号线', '东帮': '3号线', '西帮': '4号线' };
-    let displayLines = [];
-    if (this.selectedRegions.includes('全部')) displayLines = ['1号线', '2号线', '3号线', '4号线'];
+    let displayLines =[];
+    if (this.selectedRegions.includes('全部')) displayLines =['1号线', '2号线', '3号线', '4号线'];
     else { this.selectedRegions.forEach(reg => { if (regToLineMap[reg]) displayLines.push(regToLineMap[reg]); }); }
     const isAllChecked = displayLines.length > 0 && displayLines.every(l => this.selectedLines.includes(l));
     let html = `<div class="custom-dropdown-item" onclick="mapFilterModule.handleLineChange({value:'全部', checked: ${!isAllChecked}}, event)"><input type="checkbox" value="全部" ${isAllChecked ? 'checked' : ''}><span style="font-weight:bold; color:#1c3d90;">全部</span></div><hr style="margin:4px 0; border:0; border-top:1px solid #eee;">`;
@@ -606,7 +670,7 @@ init() {
 
 getDisplayPoints(filterVal = '') {
   // 获取所有符合当前激活设备类型的点
-  let allPoints = [];
+  let allPoints =[];
   for (const id of Object.keys(mapModule.pMeta)) {
     const meta = mapModule.pMeta[id];
     // 如果该设备类型未被激活，则跳过
@@ -647,12 +711,12 @@ getDisplayPoints(filterVal = '') {
 
 handleRegionChange(cb) {
     const val = cb.value;
-    const allRegions = ['北帮', '南帮', '东帮', '西帮', '中央区'];
+    const allRegions =['北帮', '南帮', '东帮', '西帮', '中央区'];
     const regToLineMap = { '北帮': '1号线', '南帮': '2号线', '东帮': '3号线', '西帮': '4号线' };
 
     // 获取当前所有激活类型（非 SAT）的点
     const getAllActivePoints = () => {
-      const points = [];
+      const points =[];
       for (const id of Object.keys(mapModule.pMeta)) {
         const meta = mapModule.pMeta[id];
         if (meta.type !== 'SAT' && this.activeTypes.has(meta.type)) {
@@ -666,11 +730,11 @@ handleRegionChange(cb) {
       if (cb.checked) {
         this.selectedRegions = ['全部', ...allRegions];
         this.selectedPoints = getAllActivePoints();  // 全选所有激活类型的点
-        this.selectedLines = ['全部', '1号线', '2号线', '3号线', '4号线'];
+        this.selectedLines =['全部', '1号线', '2号线', '3号线', '4号线'];
       } else {
-        this.selectedRegions = [];
+        this.selectedRegions =[];
         this.selectedPoints = [];
-        this.selectedLines = [];
+        this.selectedLines =[];
       }
     } else {
       if (cb.checked) {
@@ -708,7 +772,7 @@ handleRegionChange(cb) {
     const val = cb.value, isChecked = cb.checked;
     const regToLineMap = { '北帮': '1号线', '南帮': '2号线', '东帮': '3号线', '西帮': '4号线' };
     const lineToRegMap = { '1号线': '北帮', '2号线': '南帮', '3号线': '东帮', '4号线': '西帮' };
-    let targetLines = [];
+    let targetLines =[];
     if (this.selectedRegions.includes('全部')) targetLines = ['1号线', '2号线', '3号线', '4号线'];
     else { this.selectedRegions.forEach(reg => { if (regToLineMap[reg]) targetLines.push(regToLineMap[reg]); }); }
     if (val === '全部') {
@@ -759,7 +823,7 @@ handlePointInput() {
   if (!input) return;
   const val = input.value.trim();
   // 获取当前所有在线且属于激活类型的设备点
-  let allActivePoints = [];
+  let allActivePoints =[];
   for (const id of Object.keys(mapModule.pMeta)) {
     const meta = mapModule.pMeta[id];
     if (!meta.isOnline) continue;
@@ -770,16 +834,16 @@ handlePointInput() {
   if (val === '' || val === '全部' || val === '全部监测点') {
     if (val === '全部' || val === '全部监测点') {
       this.selectedPoints = allActivePoints.map(p => p.id);
-      this.selectedRegions = ['全部', '北帮', '南帮', '东帮', '西帮', '中央区'];
+      this.selectedRegions =['全部', '北帮', '南帮', '东帮', '西帮', '中央区'];
     } else {
       this.selectedPoints = [];
-      this.selectedRegions = [];
+      this.selectedRegions =[];
     }
     this.syncUI();
     return;
   }
   const parts = val.split(/[、,，\s]/).map(p => p.trim()).filter(p => p !== '');
-  const newSelectedPoints = [], newSelectedRegions = [];
+  const newSelectedPoints = [], newSelectedRegions =[];
   parts.forEach(part => {
     // 模糊匹配 deviceId（如 "GNSS11" 或 "RADAR3" 或直接输入编号部分）
     const matchedPoint = allActivePoints.find(p => p.deviceId.toLowerCase() === part.toLowerCase() || p.deviceId.toLowerCase().includes(part.toLowerCase()));
@@ -807,7 +871,7 @@ toggle(type, el) {
       this.removeRadarClouds();
       this.removeSatLayer();
       mapModule.selectedMapTypes = mapModule.selectedMapTypes.filter(t => t !== 'uav');
-      this.selectedPoints = [];  // 清空所有点
+      this.selectedPoints =[];  // 清空所有点
     } else {
       this.allTypes.forEach(t => this.activeTypes.add(t));
       this.renderSatLayer();
@@ -880,7 +944,7 @@ toggle(type, el) {
     if (meta.type === 'RADAR') {
       if (isFullRegionSelected) isVisibilityMatch = true;
       else {
-        const targets = this.radarTargetMapping[meta.region] || [];
+        const targets = this.radarTargetMapping[meta.region] ||[];
         isVisibilityMatch = this.selectedRegions.some(reg => targets.includes(reg));
       }
     } else {
@@ -901,7 +965,7 @@ toggle(type, el) {
       let isVisibilityMatch = false;
       if (meta.type === 'RADAR') {
         if (isFullRegionSelected) isVisibilityMatch = true;
-        else { const targets = this.radarTargetMapping[meta.region] || []; isVisibilityMatch = this.selectedRegions.some(reg => targets.includes(reg)); }
+        else { const targets = this.radarTargetMapping[meta.region] ||[]; isVisibilityMatch = this.selectedRegions.some(reg => targets.includes(reg)); }
       } else { isVisibilityMatch = isFullRegionSelected || this.selectedRegions.includes(meta.region); }
       const isPointChecked = this.selectedPoints.includes(p.id);
       p.style.display = (isVisibilityMatch && isTypeActive && isPointChecked) ? 'block' : 'none';
@@ -944,7 +1008,7 @@ toggle(type, el) {
 // ================= 连线模块 =================
 const connectionModule = {
   svg: null,
-  detectionLines: [],
+  detectionLines:[],
 
   init() {
     this.svg = document.getElementById('connection-svg');
@@ -962,14 +1026,14 @@ const connectionModule = {
   },
 
   generateDetectionLines() {
-    this.detectionLines = [];
+    this.detectionLines =[];
     const regions = ['北帮', '南帮', '东帮', '西帮'];
-    const lineColors = ['#F57676', '#FFA500', '#66B1FF', '#71C446'];
+    const lineColors =['#F57676', '#FFA500', '#66B1FF', '#71C446'];
     regions.forEach((reg, idx) => {
       const linePoints = Object.keys(mapModule.pMeta).filter(id => mapModule.pMeta[id].region === reg && mapModule.pMeta[id].isOnDetectionLine).map(id => { const el = document.getElementById(id); return { id: id, x: parseFloat(el.style.left) + 16, y: parseFloat(el.style.top) + 16 }; }).sort((a, b) => (idx < 2) ? (a.x - b.x) : (a.y - b.y));
       if (linePoints.length >= 2) this.detectionLines.push({ id: idx + 1, name: `${idx + 1}号线`, region: reg, color: lineColors[idx], points: linePoints, path: `M ${linePoints[0].x} ${linePoints[0].y} ` + linePoints.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ') });
     });
-    if (window.mapFilterModule) window.mapFilterModule.allLines = ['全部', '1号线', '2号线', '3号线', '4号线'];
+    if (window.mapFilterModule) window.mapFilterModule.allLines =['全部', '1号线', '2号线', '3号线', '4号线'];
   },
 
   drawConnections() {
@@ -992,9 +1056,9 @@ const connectionModule = {
 
 // ================= 剖面模块 =================
 const profileModule = {
-  isDrawing: false, selectedPoints: [], isDragging: false, dragLine: { start: null, end: null }, chartInstance: null, lastSavedOptions: null, currentOptions: null, isViewingHistory: false,
+  isDrawing: false, selectedPoints:[], isDragging: false, dragLine: { start: null, end: null }, chartInstance: null, lastSavedOptions: null, currentOptions: null, isViewingHistory: false,
 
-  enterMode() { this.isDrawing = true; this.selectedPoints = []; this.dragLine = { start: null, end: null }; document.getElementById('draw-toolbar').style.display = 'flex'; document.getElementById('btn-enter-profile').style.display = 'none'; document.getElementById('map-viewer').style.cursor = 'crosshair'; this.resetDrawingData(); },
+  enterMode() { this.isDrawing = true; this.selectedPoints =[]; this.dragLine = { start: null, end: null }; document.getElementById('draw-toolbar').style.display = 'flex'; document.getElementById('btn-enter-profile').style.display = 'none'; document.getElementById('map-viewer').style.cursor = 'crosshair'; this.resetDrawingData(); },
   exitMode() { this.isDrawing = false; if (this.chartInstance) { this.chartInstance.dispose(); this.chartInstance = null; } document.getElementById('draw-toolbar').style.display = 'none'; document.getElementById('profile-mini-trigger').style.display = 'none'; document.getElementById('btn-enter-profile').style.display = 'block'; document.getElementById('map-viewer').style.cursor = 'grab'; this.currentOptions = null; this.lastSavedOptions = null; this.resetDrawingData(); },
   confirmDraw() {
     let startPos, endPos;
@@ -1019,13 +1083,13 @@ const profileModule = {
   generateChartOptions(start, end) {
     const distance = Math.sqrt(Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2));
     const seed = (Math.abs(start.x + start.y - end.x - end.y) % 100) / 100;
-    const terrainData = [], slidingData = [];
+    const terrainData = [], slidingData =[];
     const baseH = 1200 + (seed * 80), slope = (end.y - start.y) / 5;
     for (let i = 0; i < 6; i++) { const ratio = i / 5; const h = baseH - (slope * ratio) + (Math.sin(ratio * Math.PI + seed * 10) * 20); terrainData.push(h.toFixed(1)); slidingData.push((h - (25 + (seed * 40) * Math.sin(ratio * Math.PI))).toFixed(1)); }
-    return { title: { text: `剖面结构分析 (${Math.round(distance)}m)`, left: 'center', textStyle: { color: '#1c3d90', fontSize: 14 } }, tooltip: { trigger: 'axis' }, legend: { data: ['地表线', '预估滑动面'], bottom: 10 }, grid: { top: 60, bottom: 80, left: 60, right: 40 }, xAxis: { type: 'category', data: ['起', '20%', '40%', '60%', '80%', '终'], boundaryGap: false }, yAxis: { type: 'value', name: '高程(m)', min: v => Math.floor(v.min / 10) * 10 - 20 }, series: [{ name: '地表线', data: terrainData, type: 'line', smooth: true, areaStyle: { color: 'rgba(133, 198, 241, 0.3)' }, lineStyle: { color: '#1c3d90', width: 3 } }, { name: '预估滑动面', data: slidingData, type: 'line', smooth: true, lineStyle: { type: 'dashed', color: '#F57676', width: 2 } }] };
+    return { title: { text: `剖面结构分析 (${Math.round(distance)}m)`, left: 'center', textStyle: { color: '#1c3d90', fontSize: 14 } }, tooltip: { trigger: 'axis' }, legend: { data: ['地表线', '预估滑动面'], bottom: 10 }, grid: { top: 60, bottom: 80, left: 60, right: 40 }, xAxis: { type: 'category', data:['起', '20%', '40%', '60%', '80%', '终'], boundaryGap: false }, yAxis: { type: 'value', name: '高程(m)', min: v => Math.floor(v.min / 10) * 10 - 20 }, series:[{ name: '地表线', data: terrainData, type: 'line', smooth: true, areaStyle: { color: 'rgba(133, 198, 241, 0.3)' }, lineStyle: { color: '#1c3d90', width: 3 } }, { name: '预估滑动面', data: slidingData, type: 'line', smooth: true, lineStyle: { type: 'dashed', color: '#F57676', width: 2 } }] };
   },
   closeWorkbench() { this.exitMode(); document.getElementById('profile-workbench').style.display = 'none'; },
-  resetDrawingData() { this.selectedPoints = []; this.dragLine = { start: null, end: null }; document.querySelectorAll('.point-obj').forEach(p => p.classList.remove('selected')); this.renderLines(); },
+  resetDrawingData() { this.selectedPoints =[]; this.dragLine = { start: null, end: null }; document.querySelectorAll('.point-obj').forEach(p => p.classList.remove('selected')); this.renderLines(); },
   handlePointClick(id) { if (!this.isDrawing || this.dragLine.start) return; const idx = this.selectedPoints.indexOf(id); if (idx > -1) { this.selectedPoints.splice(idx, 1); document.getElementById(id).classList.remove('selected'); } else { this.selectedPoints.push(id); document.getElementById(id).classList.add('selected'); } this.renderLines(); },
   handleMouseDown(e) { if (!this.isDrawing || !e.ctrlKey) return; const r = document.getElementById('map-canvas').getBoundingClientRect(); this.isDragging = true; this.dragLine.start = { x: (e.clientX - r.left) / mapModule.scale, y: (e.clientY - r.top) / mapModule.scale }; e.preventDefault(); },
   handleMouseMove(e) { if (!this.isDrawing || !this.isDragging) return; const r = document.getElementById('map-canvas').getBoundingClientRect(); this.dragLine.end = { x: (e.clientX - r.left) / mapModule.scale, y: (e.clientY - r.top) / mapModule.scale }; this.renderLines(); },
@@ -1036,14 +1100,14 @@ const profileModule = {
 
 // ================= 仪表盘模块（离线弹窗及聚焦） =================
 const dashModule = {
-  offlineData: [],
+  offlineData:[],
   _offlineModalKeepMapState: false,
   offlineCurrentPage: 1,
   offlinePageSize: 5,
   currentPage: 1,
   pageSize: 15,
   thresholds: { 0: 8.0, 1: 5.0, 2: 4.0, 3: 3.0, 4: '--' },
-  colors: ['#F57676', '#FFA500', '#E6A23C', '#66B1FF', '#71C446'],
+  colors:['#F57676', '#FFA500', '#E6A23C', '#66B1FF', '#71C446'],
   currentChartId: null,
   _analysisMapSnapshot: null,
 
@@ -1057,7 +1121,7 @@ const dashModule = {
     mapModule.tMultiplier = snap.tMultiplier;
     mapFilterModule.activeTypes.clear();
     snap.activeTypes.forEach((t) => mapFilterModule.activeTypes.add(t));
-    mapFilterModule.selectedRegions = [...snap.selectedRegions];
+    mapFilterModule.selectedRegions =[...snap.selectedRegions];
     mapFilterModule.selectedPoints = [...snap.selectedPoints];
     mapFilterModule.selectedLines = [...snap.selectedLines];
     const cv = document.getElementById('map-canvas');
@@ -1121,42 +1185,40 @@ const dashModule = {
     return data.sort((a, b) => a.alarmIdx - b.alarmIdx || b.value - a.value);
   },
 
-/** 右侧看板「监测预警」表格：根据地图当前显示的所有在线设备生成预警时间和随机值（排除遥感和地质写实） */
-getWarningTableData() {
-    const rows = [];
-    // 遍历所有设备
+  /** 右侧看板「监测预警」表格：根据全局保存的持久化告警时间以及顶部时间范围过滤显示 */
+  getWarningTableData() {
+    const rows =[];
     for (const id of Object.keys(mapModule.pMeta)) {
         const meta = mapModule.pMeta[id];
-        // 只考虑在线设备
-        if (!meta || !meta.isOnline) continue;
-        // ⭐ 排除遥感和地质写实监测点
-        if (meta.type === 'SAT' || meta.type === 'SURFACE') continue;
+        // 只考虑在线设备，排除遥感和地质写实
+        if (!meta || !meta.isOnline || meta.type === 'SAT' || meta.type === 'SURFACE') continue;
+        
         // 必须符合地图当前的筛选条件（区域、监测线、设备类型勾选等）
         if (!mapFilterModule.isDeviceInDashboardScope(id)) continue;
 
-        // 生成随机预警时间（最近7天内）
-        const seed = parseInt(id.replace('pt-', ''), 10) || 0;
-        const now = new Date();
-        const randomDaysAgo = Math.floor(Math.random() * 7);
-        const randomHours = Math.floor(Math.random() * 24);
-        const randomMinutes = Math.floor(Math.random() * 60);
-        const warnTime = new Date(now);
-        warnTime.setDate(now.getDate() - randomDaysAgo);
-        warnTime.setHours(randomHours, randomMinutes, 0, 0);
+        // 核心联动：如果存在选定的时间范围，过滤掉不在该范围内的设备数据
+        if (mapModule.timeRange && meta.warnTime) {
+            if (meta.warnTime < mapModule.timeRange.start || meta.warnTime > mapModule.timeRange.end) {
+                continue;
+            }
+        }
+
+        // 格式化时间用于展示
+        const warnTime = meta.warnTime || new Date();
         const warnTimeStr = `${warnTime.getMonth() + 1}/${warnTime.getDate()} ${warnTime.getHours().toString().padStart(2, '0')}:${warnTime.getMinutes().toString().padStart(2, '0')}`;
 
         // 根据设备类型生成不同量级的随机值（用于演示）
         let value = '0.00';
         if (meta.type === 'GNSS') {
-            value = (Math.random() * 10 + 0.5).toFixed(2);      // 0.5~10.5
+            value = (Math.random() * 10 + 0.5).toFixed(2);      
         } else if (meta.type === 'RADAR') {
-            value = (Math.random() * 20 + 1).toFixed(2);        // 1~21
+            value = (Math.random() * 20 + 1).toFixed(2);        
         } else if (meta.type === 'DEEP') {
-            value = (Math.random() * 30 + 5).toFixed(2);        // 5~35
+            value = (Math.random() * 30 + 5).toFixed(2);        
         } else if (meta.type === 'STRESS') {
-            value = (Math.random() * 200 + 50).toFixed(2);      // 50~250
+            value = (Math.random() * 200 + 50).toFixed(2);      
         } else {
-            value = (Math.random() * 15 + 1).toFixed(2);        // 其他类型
+            value = (Math.random() * 15 + 1).toFixed(2);        
         }
 
         rows.push({
@@ -1176,7 +1238,7 @@ getWarningTableData() {
         if (d !== 0) return d;
         return parseFloat(b.value) - parseFloat(a.value);
     });
-},
+  },
 
   getSortedVibData() {
     const data = Object.keys(mapModule.pMeta)
@@ -1255,14 +1317,14 @@ getWarningTableData() {
         selectedMode: false,
         formatter: (name) => `${name}  ${name === '在线' ? online : offline}`,
       },
-      series: [
+      series:[
         {
           type: 'pie',
           radius: ['45%', '65%'],
-          center: ['50%', '45%'],
+          center:['50%', '45%'],
           avoidLabelOverlap: false,
           label: { show: false },
-          data: [
+          data:[
             { value: online, name: '在线', itemStyle: { color: '#71C446' } },
             { value: offline, name: '离线', itemStyle: { color: '#999' } },
           ],
@@ -1282,13 +1344,13 @@ chart.on('click', (params) => {
     const scopeIds = Object.keys(mapModule.pMeta).filter((id) => mapFilterModule.isDeviceInDashboardScope(id));
     const scopeMetas = scopeIds.map((id) => mapModule.pMeta[id]);
     const onlineNodes = scopeMetas.filter((n) => n.isOnline);
-    const counts = [0, 0, 0, 0, 0];
+    const counts =[0, 0, 0, 0, 0];
     onlineNodes.forEach((n) => {
       counts[n.alarmIdx]++;
     });
     const chart = echarts.init(el);
-    const alarmColors = ['#F57676', '#FFA500', '#fadb14', '#66B1FF', '#71C446'];
-    const alarmNames = ['一级告警', '二级告警', '三级告警', '四级告警', '运行正常'];
+    const alarmColors =['#F57676', '#FFA500', '#fadb14', '#66B1FF', '#71C446'];
+    const alarmNames =['一级告警', '二级告警', '三级告警', '四级告警', '运行正常'];
     let displayCount = 0;
     let displayLabel = '运行正常';
     let displayColor = alarmColors[4];
@@ -1324,7 +1386,7 @@ chart.on('click', (params) => {
       series: [
         {
           type: 'pie',
-          radius: ['45%', '65%'],
+          radius:['45%', '65%'],
           center: ['50%', '45%'],
           label: { show: false },
           data: alarmNames.map((name, i) => ({
@@ -1372,7 +1434,7 @@ chart.on('click', (params) => {
     if (this.currentPage < 1) this.currentPage = 1;
     const startIndex = (this.currentPage - 1) * this.pageSize;
     const pageData = allData.slice(startIndex, startIndex + this.pageSize);
-    const statusColors = ['#f5222d', '#fa8c16', '#fadb14', '#1890ff', '#52c41a'];
+    const statusColors =['#f5222d', '#fa8c16', '#fadb14', '#1890ff', '#52c41a'];
 
     tbody.innerHTML = pageData
       .map((item, i) => {
@@ -1474,7 +1536,7 @@ showOfflineModal(data, keepMapState = false) {
         // 只有需要修改地图状态时才保存快照
         this._offlineModalSnapshot = {
             activeTypes: Array.from(mapFilterModule.activeTypes),
-            selectedRegions: [...mapFilterModule.selectedRegions],
+            selectedRegions:[...mapFilterModule.selectedRegions],
             selectedPoints: [...mapFilterModule.selectedPoints],
         };
     } else {
@@ -1491,11 +1553,10 @@ showOfflineModal(data, keepMapState = false) {
         const offlineIds = data.map((n) => n.id).filter(Boolean);
         const offlineRegions = [...new Set(data.map((n) => n.region))];
         mapFilterModule.selectedPoints = offlineIds;
-        mapFilterModule.selectedRegions = offlineRegions.length ? offlineRegions : [];
+        mapFilterModule.selectedRegions = offlineRegions.length ? offlineRegions :[];
         mapFilterModule.syncUI();
         const regBtn = document.getElementById('map-region-btn');
-        const pointInp = document.getElementById('map-point-input');
-        [regBtn, pointInp].forEach((el) => {
+        const pointInp = document.getElementById('map-point-input');[regBtn, pointInp].forEach((el) => {
             if (el) {
                 el.disabled = true;
                 el.style.opacity = '0.5';
@@ -1516,7 +1577,7 @@ showOfflineModal(data, keepMapState = false) {
     const totalPages = Math.ceil(total / this.offlinePageSize) || 1;
     const start = (this.offlineCurrentPage - 1) * this.offlinePageSize;
     const pageData = this.offlineData.slice(start, start + this.offlinePageSize);
-    const vendors = ['海康威视', '大华股份', '华测导航', '司南导航', '中海达'];
+    const vendors =['海康威视', '大华股份', '华测导航', '司南导航', '中海达'];
     let html = pageData
       .map((n, i) => {
         const seed = parseInt(n.id.replace('pt-', '')) || 0;
@@ -1570,7 +1631,7 @@ closeOfflineModal() {
             mapFilterModule.selectedPoints = [...snap.selectedPoints];
             this._offlineModalSnapshot = null;
         } else {
-            mapFilterModule.selectedRegions = ['全部', '北帮', '南帮', '东帮', '西帮', '中央区'];
+            mapFilterModule.selectedRegions =['全部', '北帮', '南帮', '东帮', '西帮', '中央区'];
             const allGnssIds = Object.keys(mapModule.pMeta).filter((id) => mapModule.pMeta[id].type === 'GNSS');
             mapFilterModule.selectedPoints = [...allGnssIds];
             mapFilterModule.activeTypes.clear();
@@ -1639,8 +1700,13 @@ onMounted(() => {
   mapFilterModule.init();
   timeUtils.updateMaxConstraints();
   setInterval(() => timeUtils.updateMaxConstraints(), 60000);
-  const oneDayBtn = document.querySelector('#time-engine-bar .freq-btn');
-  if (oneDayBtn) mapModule.setTime(1, oneDayBtn);
+
+  // 核心修改：获取所有时间筛选按钮，默认选中并触发第 2 个按钮（一周内）
+  const freqBtns = document.querySelectorAll('#time-engine-bar .freq-btn');
+  if (freqBtns && freqBtns.length >= 2) {
+    mapModule.setTime(7, freqBtns[1]); // 索引 1 对应“一周内”按钮
+  }
+
   setTimeout(() => { if (mapModule.selectedMapTypes.includes('geology')) connectionModule.drawConnections(); }, 500);
 });
 
@@ -3441,8 +3507,8 @@ input[type="datetime-local"].map-btn {
 }
 
 .pager-btn.disabled {
-    opacity: 0.2;
-    cursor: not-allowed;
+  opacity: 0.2;
+  cursor: not-allowed;
 }
 
 /* 强化翻页按钮视觉效果 */
@@ -4014,3 +4080,4 @@ input[type="datetime-local"].map-btn {
     min-width: 200px;
 }
 </style>
+```

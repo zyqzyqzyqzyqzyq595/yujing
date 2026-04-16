@@ -1,0 +1,1137 @@
+<div class="view-container">
+    <aside class="sidebar">
+        <div class="sidebar-header">功能菜单</div>
+        <ul class="nav-list">
+            <li :class="{ active: currentTab === 'work-order' }" @click="currentTab = 'work-order'">
+                预警闭环管理
+            </li>
+            <li :class="{ active: currentTab === 'rules' }" @click="currentTab = 'rules'">
+                通知规则配置
+            </li>
+            <li :class="{ active: currentTab === 'contacts' }" @click="currentTab = 'contacts'">
+                层级化联系人
+            </li>
+        </ul>
+    </aside>
+
+    <main class="main-content">
+        <div v-if="currentTab === 'work-order'" class="tab-pane-flex">
+            <div class="page-header-wrap">
+                <h2 class="page-title">预警闭环处理管理</h2>
+            </div>
+
+            <div class="sys-card timeline-card">
+                <div class="card-header">
+                    <h3>时间轴（预警推送及处理进程）- 点击节点查看详情</h3>
+                </div>
+                <div class="timeline-wrapper">
+                    <div class="timeline-step clickable" :class="getTimelineStatus('capture')" @click="activeTimelineModal = 'capture'">
+                        <div class="step-node"></div>
+                        <div class="step-label">摄像头抓拍</div>
+                        <div class="step-time">{{ getTimelineTime('capture') }}</div>
+                    </div>
+                    <div class="timeline-line"></div>
+
+                    <div class="timeline-step clickable" :class="getTimelineStatus('supervisor')" @click="openSupervisorModal">
+                        <div class="step-node"></div>
+                        <div class="step-label">主管确认</div>
+                        <div class="step-time">{{ getTimelineTime('supervisor') }}</div>
+                    </div>
+                    <div class="timeline-line"></div>
+
+                    <div class="timeline-step clickable" :class="getTimelineStatus('push')" @click="openPushModal">
+                        <div class="step-node"></div>
+                        <div class="step-label">自动推送</div>
+                        <div class="step-time">{{ getTimelineTime('push') }}</div>
+                    </div>
+                    <div class="timeline-line"></div>
+
+                    <div class="timeline-step clickable" :class="getTimelineStatus('consult')" @click="openConsultModal">
+                        <div class="step-node"></div>
+                        <div class="step-label">多方会商</div>
+                        <div class="step-time">{{ getTimelineTime('consult') }}</div>
+                    </div>
+                    <div class="timeline-line"></div>
+
+                    <div class="timeline-step clickable" :class="getTimelineStatus('process')" @click="openProcessModal">
+                        <div class="step-node"></div>
+                        <div class="step-label">隐患处理</div>
+                        <div class="step-time">{{ getTimelineTime('process') }}</div>
+                    </div>
+                    <div class="timeline-line"></div>
+
+                    <div class="timeline-step clickable" :class="getTimelineStatus('archive')" @click="openArchiveModal">
+                        <div class="step-node"></div>
+                        <div class="step-label">跟踪归档</div>
+                        <div class="step-time">{{ getTimelineTime('archive') }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sys-card table-card">
+                <div class="table-header">
+                    <h3>预警记录管理</h3>
+                    <div class="header-tools">
+                        <button class="add-btn" @click="handleCreateOrder">+ 新增处置单</button>
+                    </div>
+                </div>
+
+                <div class="search-section">
+                    <span class="search-label">时间检索：</span>
+                    <input type="date" class="ctrl-input" v-model="searchParams.time">
+                    <span class="search-label">等级检索：</span>
+                    <select class="ctrl-input" v-model="searchParams.level">
+                        <option value="">全部等级</option>
+                        <option value="red">红色预警 (一级)</option>
+                        <option value="orange">橙色预警 (二级)</option>
+                        <option value="yellow">黄色预警 (三级)</option>
+                        <option value="blue">蓝色预警 (四级)</option>
+                    </select>
+                    <span class="search-label">区域检索：</span>
+                    <input type="text" class="ctrl-input" v-model="searchParams.area" placeholder="输入预警区域">
+                </div>
+
+                <div class="table-scroll-wrap">
+                    <table class="sys-table">
+                        <thead>
+                        <tr>
+                            <th>预警时间</th>
+                            <th>预警等级</th>
+                            <th>预警区域</th>
+                            <th>处理人员</th>
+                            <th>处置状态</th>
+                            <th>是否闭环</th>
+                            <th>处理意见</th>
+                            <th width="120">操作</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr
+                                v-for="(item, index) in filteredTableData"
+                                :key="item.id || index"
+                                :class="{ 'active-row': selectedRecord === item }"
+                                @click="selectRecord(item)"
+                                style="cursor: pointer;"
+                        >
+                            <td>{{ item.time }}</td>
+                            <td>
+                  <span
+                          :class="['level-tag', item.levelClass]"
+
+                          title="点击查看对应时间轴进度"
+                          style="cursor: pointer;">
+                    {{ item.levelText }}
+                  </span>
+                            </td>
+                            <td>{{ item.area }}</td>
+                            <td>{{ item.staff }}</td>
+                            <td><span :class="getStatusClass(item.status)">{{ item.status }}</span></td>
+                            <td>{{ item.isClosed }}</td>
+                            <td>{{ item.opinion }}</td>
+                            <td>
+                                <div class="action-buttons">
+                                    <button v-if="item.isClosed === '是'" class="btn-download" @click.stop="downloadArchive">下载</button>
+                                    <span v-else style="color:#999;font-size:12px;">处理中</span>
+                                    <button class="btn-expert" @click.stop="openExpertModal(item)">是否录入专家库</button>
+                                    <button class="btn-text delete" @click.stop="deleteWorkOrder(item)">删除</button>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr v-if="filteredTableData.length === 0">
+                            <td colspan="8" style="text-align: center; padding: 30px; color: #999;">未检索到匹配的记录</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="currentTab === 'rules'" class="tab-pane-flex">
+            <div class="page-header-wrap">
+                <h2 class="page-title">通知规则配置</h2>
+            </div>
+            <div class="sys-card flex-full-card">
+                <div class="table-header"><h3>推荐的核心通知规则</h3></div>
+                <div class="table-scroll-wrap" style="padding-bottom: 20px;">
+                    <table class="sys-table">
+                        <thead>
+                        <tr>
+                            <th width="150">预警等级</th>
+                            <th>通知范围</th>
+                            <th width="120">通知操作</th>
+                            <th width="140">推送频率 (未读催办)</th>
+                            <th width="350">通知渠道</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr v-for="rule in ruleList" :key="rule.id">
+                            <td><span :class="['level-tag', rule.levelClass]">{{ rule.levelText }}</span></td>
+                            <td class="td-desc">
+                                <div style="line-height: 1.8;">
+                                    <div>
+                                        <strong>岗位：</strong>
+                                        <span v-if="getRuleRoleNames(rule).length">
+                {{ getRuleRoleNames(rule).join('、') }}
+            </span>
+                                        <span v-else style="color:#999;">未配置</span>
+                                    </div>
+                                    <div style="margin-top: 4px;">
+                                        <strong>人员：</strong>
+                                        <span v-if="getRulePersonNames(rule).length">
+                {{ getRulePersonNames(rule).join('、') }}
+            </span>
+                                        <span v-else style="color:#999;">未配置</span>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <button class="btn-download" @click="openRuleConfig(rule)">人员选择</button>
+                            </td>
+                            <td>
+                                <select class="ctrl-input full-w" v-model="rule.frequency">
+                                    <option v-for="freq in frequencies" :key="freq" :value="freq">{{ freq }}</option>
+                                </select>
+                            </td>
+                            <td>
+                                <select class="ctrl-input full-w" v-model="rule.channel">
+                                    <option v-for="ch in channels" :key="ch" :value="ch">{{ ch }}</option>
+                                </select>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="currentTab === 'contacts'" class="tab-pane-flex">
+            <div class="page-header-wrap">
+                <h2 class="page-title">层级化联系人管理</h2>
+            </div>
+            <div class="contact-container">
+                <div class="sys-card tree-sidebar">
+                    <div class="card-header">
+                        <h3>矿山组织架构树</h3>
+                        <div class="header-tools">
+                            <button class="add-btn" @click="handleAddRootNode">新增部门</button>
+                        </div>
+                    </div>
+                    <div class="org-tree-mock">
+                        <div v-for="root in orgTree" :key="root.id">
+                            <div class="tree-node-wrapper">
+    <span
+            :class="['tree-node-label', 'root-node', { 'active-node': selectedNodeId === root.id }]"
+            @click="selectNode(root.id)"
+    >
+        {{ root.label }}
+    </span>
+
+                                <span class="node-actions">
+
+        <button class="btn-icon" @click.stop="handleEditNode(root)">编辑</button>
+    <button class="btn-icon delete-btn" @click.stop="handleDeleteNode(root)">删除</button>
+    </span>
+                            </div>
+
+                            <div
+                                    v-for="child in root.children"
+                                    :key="child.id"
+                                    class="tree-node-wrapper"
+                                    style="padding-left: 20px;"
+                            >
+    <span
+            :class="['tree-node-label', 'child-node', { 'active-node': selectedNodeId === child.id }]"
+            @click="selectNode(child.id)"
+    >
+        - {{ child.label }}
+    </span>
+
+                                <span class="node-actions">
+    <button class="btn-icon" @click.stop="handleEditNode(child, root)">编辑</button>
+    <button class="btn-icon delete-btn" @click.stop="handleDeleteNode(child, root)">删除</button>
+</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sys-card list-content">
+                    <div class="table-header">
+                        <h3>人员联系方式与角色配置 - {{ currentNodeLabel }}</h3>
+                        <div class="header-tools">
+                            <button class="add-btn" @click="handleCreateContact">+ 新增联系人</button>
+                        </div>
+                    </div>
+                    <div class="table-scroll-wrap">
+                        <table class="sys-table">
+                            <thead>
+                            <tr>
+                                <th>姓名</th>
+                                <th>系统账号</th>
+                                <th>手机号码</th>
+                                <th>所属部门</th>
+                                <th>行政职务</th>
+                                <th width="120">操作</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr v-for="(person, index) in filteredContacts" :key="index">
+                                <td>{{ person.name }}</td>
+                                <td>{{ person.account }}</td>
+                                <td>{{ person.phone }}</td>
+                                <td>{{ getNodeLabel(person.deptId) }}</td>
+                                <td>{{ person.position }}</td>
+                                <td>
+                                    <button class="btn-text edit" @click="editContact(person)">编辑</button>
+                                    <button class="btn-text delete" @click="deleteContact(person)">删除</button>
+                                </td>
+                            </tr>
+                            <tr v-if="filteredContacts.length === 0">
+                                <td colspan="6" style="text-align: center; padding: 30px; color: #999;">当前节点暂无联系人数据</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="showRuleModal" class="modal-overlay">
+            <div class="modal-content" style="width: 760px;">
+                <div class="modal-header">
+                    <h3>配置通知范围</h3>
+                    <span class="close-btn" @click="showRuleModal = false">×</span>
+                </div>
+
+                <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                        <div class="section-title" style="margin-bottom:0;">通知对象选择</div>
+                        <button class="btn-download" @click="clearRuleAll">全部清空</button>
+                    </div>
+
+                    <div
+                            v-for="root in orgTree"
+                            :key="root.id"
+                            style="border:1px solid #ebeef5; border-radius:6px; padding:12px 14px; margin-bottom:12px; background:#fcfcfc;"
+                    >
+                        <!-- 部门标题行 -->
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                            <div
+                                    style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:14px; font-weight:bold; color:#1c3d90;"
+                                    @click="toggleRootExpand(root.id)"
+                            >
+                                <span>{{ isRootExpanded(root.id) ? '▼' : '▶' }}</span>
+                                <span>{{ root.label }}</span>
+                            </div>
+
+                            <button class="btn-download" @click.stop="toggleRootPersons(root.id)">
+                                {{ isRootAllPersonsSelected(root.id) ? '清空本部门人员' : '全选本部门人员' }}
+                            </button>
+                        </div>
+
+                        <!-- 只有部门展开后，才显示岗位 -->
+                        <div v-if="isRootExpanded(root.id)">
+                            <div
+                                    v-for="child in root.children"
+                                    :key="child.id"
+                                    style="padding:10px 12px; border-radius:6px; background:#fff; border:1px solid #f0f0f0; margin-bottom:10px;"
+                            >
+                                <!-- 岗位标题行 -->
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                                    <div
+                                            style="display:flex; align-items:center; gap:8px; cursor:pointer;"
+                                            @click="toggleRoleExpand(child.id)"
+                                    >
+                                        <span>{{ isRoleExpanded(child.id) ? '▼' : '▶' }}</span>
+
+                                        <label class="cb-label" style="font-weight:bold; color:#333; font-size:13px;" @click.stop>
+                                            <input
+                                                    type="checkbox"
+                                                    :value="child.id"
+                                                    v-model="ruleForm.selectedRoleIds"
+                                            >
+                                            {{ child.label }}
+                                        </label>
+                                    </div>
+
+                                    <button class="btn-download" @click.stop="toggleRolePersons(child.id)">
+                                        {{ isRoleAllPersonsSelected(child.id) ? '清空该岗位人员' : '全选该岗位人员' }}
+                                    </button>
+                                </div>
+
+                                <!-- 只有岗位展开后，才显示人员 -->
+                                <div
+                                        v-if="isRoleExpanded(child.id) && getPersonsByRoleId(child.id).length"
+                                        class="checkbox-grid"
+                                        style="padding-left:18px;"
+                                >
+                                    <label
+                                            v-for="person in getPersonsByRoleId(child.id)"
+                                            :key="person.id"
+                                            class="cb-label"
+                                    >
+                                        <input
+                                                type="checkbox"
+                                                :value="person.id"
+                                                v-model="ruleForm.selectedPersonIds"
+                                        >
+                                        {{ person.name }}（{{ person.phone }}）
+                                    </label>
+                                </div>
+
+                                <div
+                                        v-else-if="isRoleExpanded(child.id)"
+                                        style="padding-left:18px; font-size:12px; color:#999;"
+                                >
+                                    当前岗位暂无联系人
+                                </div>
+                            </div>
+
+                            <div v-if="!root.children || !root.children.length" style="font-size:12px; color:#999;">
+                                当前部门暂无岗位
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer" style="display:flex; justify-content:space-between; align-items:center;">
+                    <button class="btn-download" @click="clearRuleAll">全部清空</button>
+
+                    <div>
+                        <button class="btn-cancel" @click="showRuleModal = false">取消</button>
+                        <button class="btn-confirm ctrl-btn" @click="saveRuleConfig">确定保存</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="showExpertModal" class="modal-overlay">
+            <div class="modal-content" style="width: 760px; max-height: 90vh; display: flex; flex-direction: column;">
+                <div class="modal-header">
+                    <h3>录入成功治理案例 (标准化模板)</h3>
+                    <span class="close-btn" @click="showExpertModal = false">×</span>
+                </div>
+                <div class="modal-body" style="overflow-y: auto; padding-right: 10px;">
+
+                    <div class="section-title">| 基础与多维标签</div>
+                    <div class="form-grid">
+                        <div class="form-item full-width">
+                            <label>案例名称/编号 <span style="color:red">*</span></label>
+                            <input class="ctrl-input" type="text" v-model="expertFormData.caseName" placeholder="例如：2025-01 南帮局部滑坡治理">
+                        </div>
+                        <div class="form-item">
+                            <label>滑坡模式</label>
+                            <select class="ctrl-input" v-model="expertFormData.slideMode">
+                                <option value="片帮">片帮</option>
+                                <option value="圆弧滑动">圆弧滑动</option>
+                                <option value="组合滑动">组合滑动</option>
+                            </select>
+                        </div>
+                        <div class="form-item">
+                            <label>滑坡力学成因机制</label>
+                            <input class="ctrl-input" type="text" v-model="expertFormData.mechanism" placeholder="如：推移式、牵引式">
+                        </div>
+                        <div class="form-item">
+                            <label>潜在滑体高度</label>
+                            <input class="ctrl-input" type="text" v-model="expertFormData.slideHeight" placeholder="输入滑体高度">
+                        </div>
+                        <div class="form-item">
+                            <label>走向长度</label>
+                            <input class="ctrl-input" type="text" v-model="expertFormData.strikeLength" placeholder="输入走向长度">
+                        </div>
+                        <div class="form-item">
+                            <label>边坡角</label>
+                            <input class="ctrl-input" type="text" v-model="expertFormData.slopeAngle" placeholder="输入边坡角度">
+                        </div>
+                        <div class="form-item">
+                            <label>特殊地质构造</label>
+                            <input class="ctrl-input" type="text" v-model="expertFormData.geologicalStructure" placeholder="如：断层、节理裂隙">
+                        </div>
+                        <div class="form-item">
+                            <label>主导诱因</label>
+                            <select class="ctrl-input" v-model="expertFormData.inducingFactor">
+                                <option value="降雨入渗">降雨入渗</option>
+                                <option value="爆破振动">爆破振动</option>
+                                <option value="开挖扰动">开挖扰动</option>
+                                <option value="地下水渗流">地下水渗流</option>
+                            </select>
+                        </div>
+                        <div class="form-item">
+                            <label>处置方法</label>
+                            <select class="ctrl-input" v-model="expertFormData.treatmentMethod">
+                                <option value="削坡">削坡</option>
+                                <option value="压脚">压脚</option>
+                                <option value="局部支挡">局部支挡</option>
+                                <option value="换填">换填</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="section-title" style="margin-top: 20px;">| 预警与地质详情</div>
+                    <div class="form-grid">
+                        <div class="form-item full-width">
+                            <label>触发预警阈值与监测特征</label>
+                            <input class="ctrl-input" type="text" v-model="expertFormData.thresholdFeatures" placeholder="如：Z位移突变 > 150mm/d，深部位移呈三阶段蠕变">
+                        </div>
+                        <div class="form-item full-width">
+                            <label>详细地质条件说明</label>
+                            <textarea class="ctrl-input" style="height: 60px; resize: vertical;" v-model="expertFormData.geoDetails" placeholder="描述具体地层倾向、倾角及地下水情况..."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="section-title" style="margin-top: 20px;">| 方案与效果评估</div>
+                    <div class="form-grid">
+                        <div class="form-item full-width">
+                            <label>采用的治理方案 (主方案与辅助方案) <span style="color:red">*</span></label>
+                            <textarea class="ctrl-input" style="height: 60px; resize: vertical;" v-model="expertFormData.treatmentPlan" placeholder="详细描述处治工法与设计参数..."></textarea>
+                        </div>
+                        <div class="form-item full-width">
+                            <label>施工技术要点</label>
+                            <textarea class="ctrl-input" style="height: 60px; resize: vertical;" v-model="expertFormData.constructionPoints" placeholder="简述施工技术要点"></textarea>
+                        </div>
+                        <div class="form-item full-width">
+                            <label>最终效果评估</label>
+                            <input class="ctrl-input" type="text" v-model="expertFormData.finalEvaluation" placeholder="如：实施后位移收敛，安全系数提升至1.25，边坡稳定。">
+                        </div>
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-cancel" @click="showExpertModal = false">取消</button>
+                    <button class="btn-confirm ctrl-btn" @click="submitExpertForm">保存并接入推理库</button>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="showModal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>新增预警处置单</h3>
+                    <span class="close-btn" @click="showModal = false">×</span>
+                </div>
+                <div class="modal-body">
+                    <div class="form-grid">
+                        <div class="form-item">
+                            <label>预警时间</label>
+                            <input class="ctrl-input" type="datetime-local" v-model="formData.time">
+                        </div>
+                        <div class="form-item">
+                            <label>预警等级</label>
+                            <select class="ctrl-input" v-model="formData.level">
+                                <option value="red">红色预警 (一级)</option>
+                                <option value="orange">橙色预警 (二级)</option>
+                                <option value="yellow">黄色预警 (三级)</option>
+                                <option value="blue">蓝色预警 (四级)</option>
+                            </select>
+                        </div>
+                        <div class="form-item">
+                            <label>预警区域</label>
+                            <input class="ctrl-input" type="text" v-model="formData.area" placeholder="请输入区域名称">
+                        </div>
+                        <div class="form-item">
+                            <label>处理人员</label>
+                            <select class="ctrl-input" v-model="formData.staff">
+                                <option value="" disabled>请选择会商参与人员</option>
+                                <option v-for="staff in consultationStaffList" :key="staff" :value="staff">{{ staff }}</option>
+                            </select>
+                        </div>
+                        <div class="form-item">
+                            <label>处置状态</label>
+                            <select class="ctrl-input" v-model="formData.status">
+                                <option v-for="status in orderStatusOptions" :key="status" :value="status">
+                                    {{ status }}
+                                </option>
+                            </select>
+                        </div>
+                        <div class="form-item">
+                            <label>是否闭环</label>
+                            <input
+                                    class="ctrl-input"
+                                    type="text"
+                                    :value="['已完成', '误报归档'].includes(formData.status) ? '是' : '否'"
+                                    disabled
+                            >
+                        </div>
+                        <div class="form-item full-width">
+                            <label>处理意见</label>
+                            <input class="ctrl-input" type="text" v-model="formData.opinion" placeholder="请输入处理意见">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-cancel" @click="showModal = false">取消</button>
+                    <button class="btn-confirm ctrl-btn" @click="submitForm">确定添加</button>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="showContactModal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>{{ editingContactIndex > -1 ? '编辑联系人配置' : '新增联系人配置' }}</h3>
+                    <span class="close-btn" @click="showContactModal = false">×</span>
+                </div>
+                <div class="modal-body">
+                    <div class="form-grid">
+                        <div class="form-item">
+                            <label>姓名</label>
+                            <input class="ctrl-input" type="text" v-model="contactForm.name" placeholder="姓名">
+                        </div>
+                        <div class="form-item">
+                            <label>系统账号</label>
+                            <input class="ctrl-input" type="text" v-model="contactForm.account" placeholder="系统账号">
+                        </div>
+                        <div class="form-item">
+                            <label>手机号码</label>
+                            <input class="ctrl-input" type="text" v-model="contactForm.phone" placeholder="手机号码">
+                        </div>
+                        <div class="form-item">
+                            <label>所属部门</label>
+                            <input class="ctrl-input" type="text" :value="currentNodeLabel" disabled>
+                        </div>
+
+                        <div class="form-item full-width">
+                            <label>行政职务</label>
+                            <input class="ctrl-input" type="text" v-model="contactForm.position" placeholder="例如：矿长、主任、技术员">
+                        </div>
+
+
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-cancel" @click="showContactModal = false">取消</button>
+                    <button class="btn-confirm ctrl-btn" @click="submitContactForm">确定保存</button>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="activeTimelineModal === 'capture'" class="modal-overlay">
+            <div class="modal-content" style="width: 600px;">
+                <div class="modal-header">
+                    <h3>摄像头现场抓拍详情</h3>
+                    <span class="close-btn" @click="activeTimelineModal = null">×</span>
+                </div>
+                <div class="modal-body">
+                    <div class="form-grid">
+                        <div class="form-item full-width">
+                            <label>抓拍预警时间</label>
+                            <div class="info-text">{{ selectedRecord ? selectedRecord.time : 'N/A' }}</div>
+                        </div>
+                        <div class="form-item full-width">
+                            <label>触发抓拍区域</label>
+                            <div class="info-text">{{ selectedRecord ? selectedRecord.area : 'N/A' }}</div>
+                        </div>
+                        <div class="form-item full-width">
+                            <label>现场抓拍画面</label>
+                            <div class="upload-area" style="padding: 40px;">
+                                <span class="upload-tip">现场抓拍记录已归档，点击此处可查看大图</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-cancel" @click="activeTimelineModal = null">关闭</button>
+                </div>
+            </div>
+        </div>
+        <div v-if="activeTimelineModal === 'supervisor'" class="modal-overlay">
+            <div class="modal-content" style="width: 680px;">
+                <div class="modal-header">
+                    <h3>主管确认</h3>
+                    <span class="close-btn" @click="activeTimelineModal = null">×</span>
+                </div>
+                <div class="modal-body">
+                    <div class="form-grid">
+                        <div class="form-item">
+                            <label>预警区域</label>
+                            <div class="info-text">{{ selectedRecord ? selectedRecord.area : 'N/A' }}</div>
+                        </div>
+                        <div class="form-item">
+                            <label>预警等级</label>
+                            <div class="info-text">{{ selectedRecord ? selectedRecord.levelText : 'N/A' }}</div>
+                        </div>
+
+                        <div class="form-item">
+                            <label>当前状态</label>
+                            <div class="info-text">{{ selectedRecord ? selectedRecord.status : 'N/A' }}</div>
+                        </div>
+                        <div class="form-item">
+                            <label>历史确认时间</label>
+                            <div class="info-text">{{ selectedRecord?.supervisorTime || '待确认' }}</div>
+                        </div>
+
+                        <div class="form-item full-width">
+                            <label>确认人 <span style="color:red">*</span></label>
+                            <input
+                                    class="ctrl-input"
+                                    type="text"
+                                    v-model="supervisorForm.name"
+                                    placeholder="请输入主管姓名"
+                                    :disabled="isStepReadonly('supervisor')"
+                            >
+                        </div>
+
+                        <div class="form-item full-width">
+                            <label>确认意见</label>
+                            <textarea
+                                    class="ctrl-input"
+                                    style="height: 80px; resize: vertical;"
+                                    v-model="supervisorForm.opinion"
+                                    placeholder="请输入是否误报、判断依据等说明"
+                                    :disabled="isStepReadonly('supervisor')"
+                            ></textarea>
+                        </div>
+
+                        <div class="form-item full-width">
+                            <label>当前确认结论</label>
+                            <div class="info-text">
+                                {{
+                                    selectedRecord?.supervisorDecision === 'valid'
+                                            ? '已确认为有效预警'
+                                            : selectedRecord?.supervisorDecision === 'false_alarm'
+                                                    ? '已判定为误报'
+                                                    : '待确认'
+                                }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="display:flex; justify-content:space-between; align-items:center;">
+                    <button class="btn-cancel" @click="activeTimelineModal = null">取消</button>
+                    <div style="display:flex; gap:10px;">
+                        <button
+                                class="btn-cancel"
+                                style="border-color:#f5222d; color:#f5222d;"
+                                @click="handleSupervisorDecision('false_alarm')"
+                                :disabled="isStepReadonly('supervisor')"
+                        >
+                            判定误报
+                        </button>
+                        <button
+                                class="btn-confirm ctrl-btn"
+                                @click="handleSupervisorDecision('valid')"
+                                :disabled="isStepReadonly('supervisor')"
+                        >
+                            确认有效并推送
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="activeTimelineModal === 'push'" class="modal-overlay">
+            <div class="modal-content" style="width: 980px; max-height: 90vh; display: flex; flex-direction: column;">
+                <div class="modal-header">
+                    <h3>自动推送信息</h3>
+                    <span class="close-btn" @click="activeTimelineModal = null">×</span>
+                </div>
+
+                <div class="modal-body" style="overflow-y: auto; padding-right: 10px;">
+                    <div class="section-title">| 当前预警信息</div>
+                    <div class="form-grid">
+                        <div class="form-item">
+                            <label>预警区域</label>
+                            <div class="info-text">{{ selectedRecord?.area || 'N/A' }}</div>
+                        </div>
+                        <div class="form-item">
+                            <label>预警等级</label>
+                            <div class="info-text">{{ selectedRecord?.levelText || 'N/A' }}</div>
+                        </div>
+                        <div class="form-item">
+                            <label>当前状态</label>
+                            <div class="info-text">{{ selectedRecord?.status || 'N/A' }}</div>
+                        </div>
+                        <div class="form-item">
+                            <label>主管确认结果</label>
+                            <div class="info-text">
+                                {{
+                                    selectedRecord?.supervisorDecision === 'valid'
+                                            ? '有效预警'
+                                            : selectedRecord?.supervisorDecision === 'false_alarm'
+                                                    ? '误报'
+                                                    : '待确认'
+                                }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="section-title" style="margin-top: 20px;">| 本次推送规则</div>
+                    <div class="form-grid">
+                        <div class="form-item">
+                            <label>规则级别</label>
+                            <div class="info-text">{{ getRuleLevelText(selectedRecord?.pushInfo?.ruleLevel) }}</div>
+                        </div>
+                        <div class="form-item">
+                            <label>催办频率</label>
+                            <div class="info-text">{{ selectedRecord?.pushInfo?.frequency || '未配置' }}</div>
+                        </div>
+                        <div class="form-item full-width">
+                            <label>通知渠道</label>
+                            <div class="info-text">{{ selectedRecord?.pushInfo?.channel || '未配置' }}</div>
+                        </div>
+                        <div class="form-item full-width">
+                            <label>规则岗位</label>
+                            <div class="info-text">
+                                {{
+                                    (selectedRecord?.pushInfo?.selectedRoleIds || [])
+                                            .map(id => getNodeLabel(id))
+                                            .filter(Boolean)
+                                            .join('、') || '未配置'
+                                }}
+                            </div>
+                        </div>
+                        <div class="form-item full-width">
+                            <label>规则人员</label>
+                            <div class="info-text">
+                                {{
+                                    (selectedRecord?.pushInfo?.selectedPersonIds || [])
+                                            .map(id => {
+                                                const p = contactData.find(item => item.id === id);
+                                                return p ? p.name : '';
+                                            })
+                                            .filter(Boolean)
+                                            .join('、') || '未配置'
+                                }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="section-title" style="margin-top: 20px;">| 本次推送对象确认</div>
+
+                    <div class="form-grid" style="margin-bottom: 12px;">
+                        <div class="form-item">
+                            <label>推送方式</label>
+                            <div class="info-text">系统按通知规则自动推送</div>
+                        </div>
+                        <div class="form-item">
+                            <label>推送时间</label>
+                            <div class="info-text">{{ selectedRecord?.pushInfo?.executeTime || '未推送' }}</div>
+                        </div>
+                        <div class="form-item full-width">
+                            <label>推送说明</label>
+                            <div class="info-text">
+                                当前预警已根据“通知规则配置”中对应等级规则自动匹配通知对象并完成推送。
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-scroll-wrap" style="max-height: 240px; border: 1px solid #ebeef5; border-radius: 6px;">
+                        <table class="sys-table">
+                            <thead>
+                            <tr>
+                                <th>姓名</th>
+                                <th>岗位</th>
+                                <th>手机号</th>
+                                <th>来源</th>
+                                <th>发送状态</th>
+                                <th>已读状态</th>
+                                <th>催办次数</th>
+
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr v-for="receiver in selectedRecord?.pushInfo?.receivers || []" :key="receiver.id">
+                                <td>{{ receiver.name }}</td>
+                                <td>{{ receiver.deptName }}</td>
+                                <td>{{ receiver.phone }}</td>
+                                <td>{{ receiver.sourceType === 'role' ? '岗位带出' : '手动补充' }}</td>
+                                <td>{{ receiver.sendStatus }}</td>
+                                <td>
+                            <span :style="{ color: receiver.readStatus === '已读' ? '#52c41a' : '#f5222d', fontWeight: 'bold' }">
+                                {{ receiver.readStatus }}
+                            </span>
+                                </td>
+                                <td>{{ receiver.urgeCount || 0 }}</td>
+
+                            </tr>
+                            <tr v-if="!(selectedRecord?.pushInfo?.receivers || []).length">
+                                <td colspan="7" style="text-align:center; color:#999; padding:30px;">
+                                    当前暂无推送对象，请先检查规则配置或手动补充联系人
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="section-title" style="margin-top: 20px;">| 自动推送结果</div>
+                    <div class="form-grid">
+                        <div class="form-item">
+                            <label>是否已自动推送</label>
+                            <div class="info-text">{{ selectedRecord?.pushInfo?.executed ? '已完成' : '未完成' }}</div>
+                        </div>
+                        <div class="form-item">
+                            <label>推送完成时间</label>
+                            <div class="info-text">{{ selectedRecord?.pushInfo?.executeTime || '未推送' }}</div>
+                        </div>
+                        <div class="form-item full-width">
+                            <label>执行来源</label>
+                            <div class="info-text">{{ selectedRecord?.pushInfo?.executeUser || '系统自动推送' }}</div>
+                        </div>
+                    </div>
+
+                    <div class="section-title" style="margin-top: 20px;">| 推送日志</div>
+                    <div style="border:1px solid #ebeef5; border-radius:6px; background:#fafafa; padding:10px 14px; max-height:160px; overflow-y:auto;">
+                        <div
+                                v-for="(log, index) in selectedRecord?.pushInfo?.logs || []"
+                                :key="index"
+                                style="padding:6px 0; border-bottom:1px dashed #e8e8e8; font-size:12px; color:#555;"
+                        >
+                            {{ log.time }} ｜ {{ log.operator }} ｜ {{ log.remark }}
+                        </div>
+                        <div v-if="!(selectedRecord?.pushInfo?.logs || []).length" style="font-size:12px; color:#999;">
+                            暂无推送日志
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn-cancel" @click="activeTimelineModal = null">关闭</button>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="activeTimelineModal === 'consult'" class="modal-overlay">
+            <div class="modal-content" style="width: 960px; max-height: 90vh; display: flex; flex-direction: column;">
+                <div class="modal-header">
+                    <h3>多方会商执行</h3>
+                    <span class="close-btn" @click="activeTimelineModal = null">×</span>
+                </div>
+
+                <div class="modal-body" style="overflow-y: auto; padding-right: 10px;">
+                    <div class="section-title">| 当前预警信息</div>
+                    <div class="form-grid">
+                        <div class="form-item">
+                            <label>预警区域</label>
+                            <div class="info-text">{{ selectedRecord?.area || 'N/A' }}</div>
+                        </div>
+                        <div class="form-item">
+                            <label>预警等级</label>
+                            <div class="info-text">{{ selectedRecord?.levelText || 'N/A' }}</div>
+                        </div>
+                        <div class="form-item">
+                            <label>当前状态</label>
+                            <div class="info-text">{{ selectedRecord?.status || 'N/A' }}</div>
+                        </div>
+                        <div class="form-item">
+                            <label>自动推送时间</label>
+                            <div class="info-text">{{ selectedRecord?.pushInfo?.executeTime || '未推送' }}</div>
+                        </div>
+                    </div>
+
+                    <div class="section-title" style="margin-top: 20px;">| 会商组织信息</div>
+                    <div class="form-grid">
+                        <div class="form-item">
+                            <label>会商主持人 <span style="color:red">*</span></label>
+                            <input
+                                    class="ctrl-input"
+                                    type="text"
+                                    v-model="consultForm.host"
+                                    placeholder="请输入会商主持人"
+                                    :disabled="isStepReadonly('consult')"
+                            >
+                        </div>
+                        <div class="form-item">
+                            <label>会商决策</label>
+                            <select class="ctrl-input" v-model="consultForm.decision" :disabled="isStepReadonly('consult')">
+                                <option value="进入隐患处理">进入隐患处理</option>
+                                <option value="转入跟踪归档">转入跟踪归档</option>
+                            </select>
+                        </div>
+                        <div class="form-item full-width">
+                            <label>补充会商参与人</label>
+                            <div style="display:flex; gap:10px;">
+                                <select class="ctrl-input" v-model="consultForm.tempParticipantId" style="flex:1;" :disabled="isStepReadonly('consult')">
+                                    <option value="">请选择联系人</option>
+                                    <option
+                                            v-for="person in getAvailableConsultPersonOptions(selectedRecord)"
+                                            :key="person.id"
+                                            :value="person.id"
+                                    >
+                                        {{ person.name }}（{{ person.position }}）
+                                    </option>
+                                </select>
+                                <button class="btn-download" @click="addConsultParticipant" :disabled="isStepReadonly('consult')">添加参与人</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="section-title" style="margin-top: 20px;">| 会商参与人</div>
+                    <div class="table-scroll-wrap" style="max-height: 220px; border:1px solid #ebeef5; border-radius:6px;">
+                        <table class="sys-table">
+                            <thead>
+                            <tr>
+                                <th>姓名</th>
+                                <th>岗位/部门</th>
+                                <th>来源</th>
+                                <th width="120">操作</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr v-for="participant in selectedRecord?.consultInfo?.participants || []" :key="participant.id">
+                                <td>{{ participant.name }}</td>
+                                <td>{{ participant.deptName }}</td>
+                                <td>{{ participant.sourceType === 'manual' ? '手工预置' : '联系人选择' }}</td>
+                                <td>
+                                    <button class="btn-text delete" @click="removeConsultParticipant(participant)" :disabled="isStepReadonly('consult')">移除</button>
+                                </td>
+                            </tr>
+                            <tr v-if="!(selectedRecord?.consultInfo?.participants || []).length">
+                                <td colspan="4" style="text-align:center; color:#999; padding:30px;">
+                                    当前暂无会商参与人，请先补充
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="section-title" style="margin-top: 20px;">| 会商结论</div>
+                    <div class="form-grid">
+                        <div class="form-item full-width">
+                            <label>会商结论 <span style="color:red">*</span></label>
+                            <textarea
+                                    class="ctrl-input"
+                                    style="height: 100px; resize: vertical;"
+                                    v-model="consultForm.conclusion"
+                                    placeholder="请输入多方会商形成的处理意见、调度要求、现场措施等"
+                                    :disabled="isStepReadonly('consult')"
+                            ></textarea>
+                        </div>
+                    </div>
+
+                    <div class="section-title" style="margin-top: 20px;">| 会商执行结果</div>
+                    <div class="form-grid">
+                        <div class="form-item">
+                            <label>是否已会商</label>
+                            <div class="info-text">{{ selectedRecord?.consultInfo?.executed ? '已完成' : '未完成' }}</div>
+                        </div>
+                        <div class="form-item">
+                            <label>会商时间</label>
+                            <div class="info-text">{{ selectedRecord?.consultInfo?.consultTime || '未会商' }}</div>
+                        </div>
+                    </div>
+
+                    <div class="section-title" style="margin-top: 20px;">| 会商日志</div>
+                    <div style="border:1px solid #ebeef5; border-radius:6px; background:#fafafa; padding:10px 14px; max-height:160px; overflow-y:auto;">
+                        <div
+                                v-for="(log, index) in selectedRecord?.consultInfo?.logs || []"
+                                :key="index"
+                                style="padding:6px 0; border-bottom:1px dashed #e8e8e8; font-size:12px; color:#555;"
+                        >
+                            {{ log.time }} ｜ {{ log.operator }} ｜ {{ log.remark }}
+                        </div>
+                        <div v-if="!(selectedRecord?.consultInfo?.logs || []).length" style="font-size:12px; color:#999;">
+                            暂无会商日志
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer" style="display:flex; justify-content:space-between; align-items:center;">
+                    <button class="btn-cancel" @click="activeTimelineModal = null">关闭</button>
+                    <button class="btn-confirm ctrl-btn" @click="executeConsult" :disabled="isStepReadonly('consult')">
+                        保存会商并推进流程
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="activeTimelineModal === 'process'" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>隐患处理执行记录</h3>
+                    <span class="close-btn" @click="activeTimelineModal = null">×</span>
+                </div>
+                <div class="modal-body">
+                    <div class="form-grid">
+                        <div class="form-item">
+                            <label>处置开始时间</label>
+                            <input type="datetime-local" class="ctrl-input" v-model="processForm.startTime" :disabled="isStepReadonly('process')">
+                        </div>
+                        <div class="form-item">
+                            <label>处置结束时间</label>
+                            <input type="datetime-local" class="ctrl-input" v-model="processForm.endTime" :disabled="isStepReadonly('process')">
+                        </div>
+                        <div class="form-item full-width">
+                            <label>处置人员</label>
+                            <input type="text" class="ctrl-input" v-model="processForm.handler" :disabled="isStepReadonly('process')">
+                        </div>
+                        <div class="form-item full-width">
+                            <label>处置结果</label>
+                            <textarea class="ctrl-input" style="height:60px; resize:none;" v-model="processForm.result" :disabled="isStepReadonly('process')"></textarea>
+                        </div>
+                        <div class="form-item full-width">
+                            <label>上传照片</label>
+                            <div class="upload-area">
+                                <input type="file" accept="image/*" class="file-input" @change="handleProcessAttachmentChange" :disabled="isStepReadonly('process')">
+                                <span class="upload-tip">
+        {{ processForm.attachmentName || '点击或拖拽上传现场处置照片' }}
+    </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-cancel" @click="activeTimelineModal = null">关闭</button>
+                    <button class="btn-confirm ctrl-btn" @click="executeProcess" :disabled="isStepReadonly('process')">保存更新</button>
+                </div>
+            </div>
+
+        </div>
+        <div v-if="activeTimelineModal === 'archive'" class="modal-overlay">
+            <div class="modal-content" style="width: 760px;">
+                <div class="modal-header">
+                    <h3>跟踪归档</h3>
+                    <span class="close-btn" @click="activeTimelineModal = null">×</span>
+                </div>
+                <div class="modal-body">
+                    <div class="form-grid">
+                        <div class="form-item">
+                            <label>预警区域</label>
+                            <div class="info-text">{{ selectedRecord?.area || 'N/A' }}</div>
+                        </div>
+                        <div class="form-item">
+                            <label>当前状态</label>
+                            <div class="info-text">{{ selectedRecord?.status || 'N/A' }}</div>
+                        </div>
+
+                        <div class="form-item full-width">
+                            <label>归档复核人 <span style="color:red">*</span></label>
+                            <textarea class="ctrl-input" v-model="archiveForm.reviewResult" :disabled="isStepReadonly('archive')"></textarea>
+                        </div>
+
+                        <div class="form-item full-width">
+                            <label>复核结论 <span style="color:red">*</span></label>
+                            <textarea class="ctrl-input" v-model="archiveForm.reviewResult" :disabled="isStepReadonly('archive')"></textarea>
+                        </div>
+
+                        <div class="form-item full-width">
+                            <label>归档说明 <span style="color:red">*</span></label>
+                            <textarea class="ctrl-input" v-model="archiveForm.archiveSummary" :disabled="isStepReadonly('archive')"></textarea>
+                        </div>
+
+                        <div class="form-item full-width">
+                            <label>
+                                <input type="checkbox" v-model="archiveForm.needExpert" :disabled="isStepReadonly('archive')">
+                                是否录入专家库
+                            </label>
+                        </div>
+
+                        <div class="form-item">
+                            <label>是否已归档</label>
+                            <div class="info-text">{{ selectedRecord?.archiveInfo?.executed ? '已归档' : '未归档' }}</div>
+                        </div>
+                        <div class="form-item">
+                            <label>归档时间</label>
+                            <div class="info-text">{{ selectedRecord?.archiveInfo?.archiveTime || '未归档' }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn-cancel" @click="activeTimelineModal = null">关闭</button>
+                    <button class="btn-confirm ctrl-btn" @click="executeArchive" :disabled="isStepReadonly('archive')">保存归档</button>
+                </div>
+            </div>
+        </div>
+
+
+    </main>
+</div>

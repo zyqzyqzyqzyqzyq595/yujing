@@ -1,11 +1,12 @@
-﻿<template>
+<template>
   <div class="view-page emergency-page">
-    <section class="emergency-shell">
+    <section class="emergency-command-board">
+      <section class="emergency-shell">
       <div class="map-panel">
         <div ref="threeContainer" class="three-viewport"></div>
-        <div class="map-overlay warning-chip">{{ warningSummary.level }}预警</div>
-        <div class="map-overlay area-chip">{{ warningSummary.area }}</div>
+          <div class="map-overlay warning-chip">四级预警</div>
         <div class="map-overlay controls-chip">左键平移 / 按住 Ctrl + 左键旋转 / 滚轮缩放</div>
+        <div id="map-tooltip" class="map-tooltip"></div>
       </div>
 
       <div class="right-column">
@@ -43,9 +44,21 @@
           <div class="panel-head">
             <div>
               <p class="panel-kicker">应急预案</p>
-              <h3>预警预案执行步骤</h3>
+              <h3>预案执行步骤</h3>
             </div>
-            <span class="steps-tag">IV级响应流程</span>
+            <div class="steps-head-actions">
+              <select
+                class="plan-level-select"
+                :value="activePlanLevel"
+                @change="onPlanLevelChange($event.target.value)"
+              >
+                <option v-for="level in planLevelOptions" :key="level" :value="level">{{ level }}</option>
+              </select>
+              <button type="button" class="status-action-btn primary" @click="launchPlan">
+                {{ launched ? '预案进行中' : '启动预案' }}
+              </button>
+              <span class="steps-tag">{{ activePlanLevel }}响应</span>
+            </div>
           </div>
 
           <div class="steps-table">
@@ -74,6 +87,7 @@
           </div>
         </section>
       </div>
+      </section>
     </section>
 
     <div v-if="showPlanModal" class="modal-mask" @click.self="closePlanLibraryModal">
@@ -150,8 +164,25 @@
         </template>
 
         <template v-else>
+          <div class="steps-level-switch">
+            <span>预案等级</span>
+            <div class="steps-level-options">
+              <button
+                v-for="level in planLevelOptions"
+                :key="level"
+                type="button"
+                class="steps-level-option"
+                :class="{ active: editingPlanLevel === level }"
+                @click="onEditingPlanLevelChange(level)"
+              >
+                {{ level }}
+              </button>
+            </div>
+          </div>
+
           <div class="steps-manage-list">
             <div class="steps-manage-head">
+              <span>选择</span>
               <span>#</span>
               <span>步骤内容</span>
               <span>责任人</span>
@@ -163,6 +194,12 @@
               :key="item.id"
               class="steps-manage-row"
             >
+              <input
+                type="checkbox"
+                class="steps-manage-check"
+                :checked="selectedEditableStepIds.includes(item.id)"
+                @change="toggleEditableStepSelection(item.id)"
+              />
               <strong>{{ item.id }}</strong>
               <input v-model="item.title" />
               <input v-model="item.owner" />
@@ -177,7 +214,22 @@
 
           <div class="steps-manage-actions">
             <button type="button" class="status-action-btn" @click="addPlanStep">新增步骤</button>
-            <button type="button" class="status-action-btn" @click="removeLastPlanStep" :disabled="editablePlanSteps.length <= 1">删除最后一步</button>
+            <button
+              type="button"
+              class="status-action-btn"
+              @click="toggleSelectAllEditableSteps"
+              :disabled="editablePlanSteps.length === 0"
+            >
+              {{ isAllEditableStepsSelected ? '取消全选' : '全选' }}
+            </button>
+            <button
+              type="button"
+              class="status-action-btn"
+              @click="removeSelectedPlanSteps"
+              :disabled="selectedEditableStepIds.length === 0 || editablePlanSteps.length - selectedEditableStepIds.length < 1"
+            >
+              删除所选步骤
+            </button>
           </div>
         </template>
 
@@ -268,6 +320,16 @@
         </div>
       </section>
     </div>
+
+    <div id="deep-modal-root"></div>
+    <div id="radar-modal-root"></div>
+    <div id="crack-modal-root"></div>
+    <div id="fire-modal-root"></div>
+    <div id="water-modal-root"></div>
+    <div id="ground-modal-root"></div>
+    <div id="yingli-modal-root"></div>
+    <div id="vib-modal-root"></div>
+
   </div>
 </template>
 
@@ -275,12 +337,33 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import { getDeepModalMarkup } from '../analysis/deepAnalysisModule.js';
+import { getRadarModalMarkup } from '../analysis/radarAnalysisModule.js';
+import { getCrackModalMarkup } from '../analysis/crackAnalysisModule.js';
+import { getFireModalMarkup } from '../analysis/fireAnalysisModule.js';
+import { getWaterModalMarkup } from '../analysis/waterAnalysisModule.js';
+import { getGroundModalMarkup } from '../analysis/groundAnalysisModule.js';
+import { getYingliModalMarkup } from '../analysis/yingliAnalysisModule.js';
+import { getVibModalMarkup } from '../analysis/vibAnalysisModule.js';
+import '../out/deep.css';
+import '../out/radar.css';
+import '../out/crack.css';
+import '../out/fire.css';
+import '../out/water.css';
+import '../out/ground.css';
+import '../out/yingli.css';
+import '../out/vib.css';
 
 const threeContainer = ref(null);
 const selectedUnitCode = ref('P-31');
+const launched = ref(false);
+const planLevelOptions = ['I级预警', 'II级预警', 'III级预警', 'IV级预警'];
+const activePlanLevel = ref('IV级预警');
+const editingPlanLevel = ref('IV级预警');
 const showPlanModal = ref(false);
 const planLibraryTab = ref('steps');
 const editablePlanSteps = ref([]);
+const selectedEditableStepIds = ref([]);
 const planStepCounter = ref(7);
 const showStepModal = ref(false);
 const stepModalMode = ref('view');
@@ -297,6 +380,9 @@ let camera;
 let controls;
 let animationId;
 let pointSprites = new Map();
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+let mapClickHandler = null;
 
 const warningSummary = {
   level: '橙色',
@@ -385,26 +471,60 @@ const emergencyPlanSetting = computed(() => {
   };
 });
 
-const planSteps = ref([
-  { id: '01', title: '发布紧急预警，全员推送', owner: '系统自动', deadline: '即时', state: '已完成', stateClass: 'done' },
-  { id: '02', title: '启动声光报警装置', owner: '调度中心', deadline: '5min', state: '已完成', stateClass: 'done' },
-  { id: '03', title: '组织危险区域人员疏散', owner: '李明华', deadline: '15min', state: '进行中', stateClass: 'running' },
-  { id: '04', title: '资源调度', owner: '调度中心', deadline: '10min', state: '进行中', stateClass: 'running' },
-  { id: '05', title: '联动停止无人驾驶车辆', owner: '系统自动', deadline: '即时', state: '已完成', stateClass: 'done' },
-  { id: '06', title: '现场勘查', owner: '张建国', deadline: '30min', state: '待启动', stateClass: 'pending' },
-  { id: '07', title: '治理措施并实施', owner: '技术部', deadline: '2h', state: '待启动', stateClass: 'pending' }
-]);
-
 const stateLabelMap = {
   done: '已完成',
   running: '进行中',
   pending: '待启动'
 };
 
+const createPendingStep = (id, title, owner, deadline) => ({
+  id,
+  title,
+  owner,
+  deadline,
+  state: '待启动',
+  stateClass: 'pending'
+});
+
+const createInitialStepsByLevel = () => ({
+  I级预警: [
+    createPendingStep('01', '发布紧急预警，全员推送', '系统自动', '即时'),
+    createPendingStep('02', '启动声光报警装置', '调度中心', '5min'),
+    createPendingStep('03', '组织危险区域人员疏散', '李明华', '15min'),
+    createPendingStep('04', '资源调度', '调度中心', '10min'),
+    createPendingStep('05', '联动停止无人驾驶车辆', '系统自动', '即时'),
+    createPendingStep('06', '现场勘查', '张建国', '30min'),
+    createPendingStep('07', '治理措施并实施', '技术部', '2h')
+  ],
+  II级预警: [
+    createPendingStep('01', '发布紧急预警，全员推送', '系统自动', '即时'),
+    createPendingStep('02', '启动声光报警装置', '调度中心', '5min'),
+    createPendingStep('03', '组织危险区域人员疏散', '李明华', '15min'),
+    createPendingStep('04', '资源调度', '调度中心', '10min'),
+    createPendingStep('05', '联动停止无人驾驶车辆', '系统自动', '即时'),
+    createPendingStep('06', '现场勘查', '张建国', '30min')
+  ],
+  III级预警: [
+    createPendingStep('01', '发布紧急预警，全员推送', '系统自动', '即时'),
+    createPendingStep('02', '启动声光报警装置', '调度中心', '5min'),
+    createPendingStep('03', '组织危险区域人员疏散', '李明华', '15min'),
+    createPendingStep('04', '资源调度', '调度中心', '10min')
+  ],
+  IV级预警: [
+    createPendingStep('01', '发布紧急预警，全员推送', '系统自动', '即时'),
+    createPendingStep('02', '启动声光报警装置', '调度中心', '5min'),
+    createPendingStep('03', '组织危险区域人员疏散', '李明华', '15min')
+  ]
+});
+
 const normalizeStepState = (step) => {
   step.state = stateLabelMap[step.stateClass] ?? step.state ?? '待启动';
   return step;
 };
+
+const planStepsByLevel = ref(createInitialStepsByLevel());
+
+const planSteps = computed(() => planStepsByLevel.value[activePlanLevel.value] ?? []);
 
 const cloneStep = (step) => ({
   id: step.id,
@@ -415,10 +535,40 @@ const cloneStep = (step) => ({
   state: step.state
 });
 
+const loadEditableStepsByLevel = (level) => {
+  const steps = planStepsByLevel.value[level] ?? [];
+  editablePlanSteps.value = steps.map((step) => cloneStep(step));
+  selectedEditableStepIds.value = [];
+  planStepCounter.value = Math.max(...editablePlanSteps.value.map((item) => Number(item.id)), 0);
+};
+
+const setLevelStepsState = (level, stateClass) => {
+  const steps = planStepsByLevel.value[level];
+  if (!steps) return;
+  const state = stateLabelMap[stateClass] ?? '待启动';
+  steps.forEach((step) => {
+    step.stateClass = stateClass;
+    step.state = state;
+  });
+};
+
+const launchPlan = () => {
+  launched.value = true;
+  setLevelStepsState(activePlanLevel.value, 'running');
+};
+
+const onPlanLevelChange = (level) => {
+  if (!planStepsByLevel.value[level]) return;
+  activePlanLevel.value = level;
+  if (launched.value) {
+    setLevelStepsState(level, 'running');
+  }
+};
+
 const openPlanLibraryModal = () => {
   planLibraryTab.value = 'steps';
-  editablePlanSteps.value = planSteps.value.map((step) => cloneStep(step));
-  planStepCounter.value = Math.max(...editablePlanSteps.value.map((item) => Number(item.id)), 0);
+  editingPlanLevel.value = activePlanLevel.value;
+  loadEditableStepsByLevel(editingPlanLevel.value);
   showPlanModal.value = true;
 };
 
@@ -439,14 +589,45 @@ const addPlanStep = () => {
   });
 };
 
-const removeLastPlanStep = () => {
-  if (editablePlanSteps.value.length <= 1) return;
-  editablePlanSteps.value.pop();
+const isAllEditableStepsSelected = computed(() => {
+  if (editablePlanSteps.value.length === 0) return false;
+  return editablePlanSteps.value.every((item) => selectedEditableStepIds.value.includes(item.id));
+});
+
+const toggleEditableStepSelection = (id) => {
+  if (selectedEditableStepIds.value.includes(id)) {
+    selectedEditableStepIds.value = selectedEditableStepIds.value.filter((itemId) => itemId !== id);
+    return;
+  }
+  selectedEditableStepIds.value = [...selectedEditableStepIds.value, id];
+};
+
+const toggleSelectAllEditableSteps = () => {
+  if (isAllEditableStepsSelected.value) {
+    selectedEditableStepIds.value = [];
+    return;
+  }
+  selectedEditableStepIds.value = editablePlanSteps.value.map((item) => item.id);
+};
+
+const removeSelectedPlanSteps = () => {
+  if (selectedEditableStepIds.value.length === 0) return;
+  const remainCount = editablePlanSteps.value.length - selectedEditableStepIds.value.length;
+  if (remainCount < 1) return;
+  const selectedIds = new Set(selectedEditableStepIds.value);
+  editablePlanSteps.value = editablePlanSteps.value.filter((item) => !selectedIds.has(item.id));
+  selectedEditableStepIds.value = [];
+};
+
+const onEditingPlanLevelChange = (level) => {
+  if (!planStepsByLevel.value[level]) return;
+  editingPlanLevel.value = level;
+  loadEditableStepsByLevel(level);
 };
 
 const confirmPlanLibrary = () => {
   if (planLibraryTab.value === 'steps') {
-    planSteps.value = editablePlanSteps.value.map((step) =>
+    const nextSteps = editablePlanSteps.value.map((step) =>
       normalizeStepState({
         ...step,
         title: step.title?.trim() || '未命名步骤',
@@ -454,6 +635,10 @@ const confirmPlanLibrary = () => {
         deadline: step.deadline?.trim() || '待定'
       })
     );
+    planStepsByLevel.value[editingPlanLevel.value] = nextSteps;
+    if (launched.value) {
+      setLevelStepsState(editingPlanLevel.value, 'running');
+    }
   }
   closePlanLibraryModal();
 };
@@ -492,7 +677,7 @@ const downloadHistoryPlanTable = () => {
   ];
 
   const stepRows = planSteps.value.map((step) => {
-    const media = stepMediaStore.value[step.id];
+    const media = stepMediaStore.value[`${activePlanLevel.value}-${step.id}`];
     return [
       step.id,
       step.title,
@@ -520,7 +705,7 @@ const downloadHistoryPlanTable = () => {
 const displayMedia = computed(() => {
   if (!activeStep.value) return null;
   if (stepModalMode.value === 'upload' && pendingStepMedia.value) return pendingStepMedia.value;
-  return stepMediaStore.value[activeStep.value.id] ?? null;
+  return stepMediaStore.value[`${activePlanLevel.value}-${activeStep.value.id}`] ?? null;
 });
 
 const canOpenStepModal = (step) => step.stateClass === 'running' || step.stateClass === 'done';
@@ -572,13 +757,13 @@ const onStepMediaSelected = (event) => {
 const submitStepUpload = () => {
   if (!activeStep.value || !pendingStepMedia.value) return;
 
-  const stepId = activeStep.value.id;
-  const existing = stepMediaStore.value[stepId];
+  const stepKey = `${activePlanLevel.value}-${activeStep.value.id}`;
+  const existing = stepMediaStore.value[stepKey];
   if (existing?.url) {
     URL.revokeObjectURL(existing.url);
   }
 
-  stepMediaStore.value[stepId] = {
+  stepMediaStore.value[stepKey] = {
     name: pendingStepMedia.value.name,
     type: pendingStepMedia.value.type,
     url: pendingStepMedia.value.url
@@ -588,6 +773,166 @@ const submitStepUpload = () => {
   activeStep.value.stateClass = 'done';
   closeStepModal();
 };
+const dashboardSensorIcons = {
+  GNSS: '📍',
+  DEEP: '⚓',
+  RADAR: '📡',
+  SURFACE: '📐',
+  CRACK: '🧱',
+  FIRE: '🔥',
+  WATER: '💧',
+  GROUND: '🌍',
+  STRESS: '📊',
+  VIB: '💥',
+  SAT: '🛸'
+};
+
+const dashboardSensorColors = {
+  GNSS: '#66B1FF',
+  DEEP: '#56C1FF',
+  RADAR: '#69D4B2',
+  SURFACE: '#F0C35A',
+  CRACK: '#FF9B6B',
+  FIRE: '#F57676',
+  WATER: '#4DBBFF',
+  GROUND: '#6ECF8A',
+  STRESS: '#C993FF',
+  VIB: '#FF8CC1',
+  SAT: '#9DD3FF'
+};
+
+const pMeta = {};
+
+const createDashboardSensorUnits = () => {
+  const deviceTypes = ['GNSS', 'DEEP', 'RADAR', 'SURFACE', 'CRACK', 'FIRE', 'WATER', 'GROUND', 'STRESS', 'VIB', 'SAT'];
+  const regionDefinitions = [
+    { name: '北帮', xRange: [800, 2200], yRange: [200, 600], lineAxis: { type: 'Y', val: 350 } },
+    { name: '南帮', xRange: [800, 2200], yRange: [1900, 2300], lineAxis: { type: 'Y', val: 2150 } },
+    { name: '西帮', xRange: [200, 700], yRange: [800, 1700], lineAxis: { type: 'X', val: 400 } },
+    { name: '东帮', xRange: [2300, 2800], yRange: [800, 1700], lineAxis: { type: 'X', val: 2600 } },
+    { name: '中央区', xRange: [1100, 1900], yRange: [1000, 1500], lineAxis: null }
+  ];
+
+  const worldFromDashboard = (x, y) => ({
+    x: ((x - 1500) / 1500) * 72,
+    z: ((y - 1250) / 1250) * 66
+  });
+
+  const placedPoints = [];
+  const minDist = 60;
+  const gnssCountPerRegion = { '北帮': 0, '南帮': 0, '东帮': 0, '西帮': 0, '中央区': 0 };
+  let redGnssCount = 0;
+
+  const units = [];
+  const total = 150;
+  for (let i = 0; i < total; i++) {
+    let deviceType = deviceTypes[i % deviceTypes.length];
+    if (i < 7) {
+      deviceType = 'RADAR';
+    } else if (deviceType === 'RADAR') {
+      deviceType = 'GNSS';
+    }
+
+    let alarmIdx = (i * 7) % 5;
+    const isOnline = (i % 8 !== 0);
+    if (deviceType === 'GNSS' && alarmIdx === 0) {
+      if (redGnssCount < 2) redGnssCount++;
+      else alarmIdx = 4;
+    }
+
+    const regDef = regionDefinitions[i % regionDefinitions.length];
+    let dashboardX, dashboardY, attempts = 0;
+    let isOnDetectionLine = false;
+    if (deviceType === 'GNSS' && regDef.lineAxis && gnssCountPerRegion[regDef.name] < 3) {
+      isOnDetectionLine = true;
+      gnssCountPerRegion[regDef.name]++;
+    }
+
+    while (attempts < 150) {
+      if (isOnDetectionLine) {
+        const idx = gnssCountPerRegion[regDef.name] - 1;
+        if (regDef.lineAxis.type === 'Y') {
+          dashboardY = regDef.lineAxis.val;
+          dashboardX = regDef.xRange[0] + 300 + (idx * 250);
+        } else {
+          dashboardX = regDef.lineAxis.val;
+          dashboardY = regDef.yRange[0] + 300 + (idx * 250);
+        }
+      } else {
+        dashboardX = regDef.xRange[0] + Math.random() * (regDef.xRange[1] - regDef.xRange[0]);
+        dashboardY = regDef.yRange[0] + Math.random() * (regDef.yRange[1] - regDef.yRange[0]);
+        if (regDef.lineAxis) {
+          if (regDef.lineAxis.type === 'Y' && Math.abs(dashboardY - regDef.lineAxis.val) < 60) continue;
+          if (regDef.lineAxis.type === 'X' && Math.abs(dashboardX - regDef.lineAxis.val) < 60) continue;
+        }
+      }
+      if (!placedPoints.some(p => Math.hypot(dashboardX - p.x, dashboardY - p.y) < minDist)) break;
+      attempts++;
+    }
+    placedPoints.push({ x: dashboardX, y: dashboardY });
+
+    const world = worldFromDashboard(dashboardX, dashboardY);
+
+    const stressSub = i % 2 === 0 ? '锚索应力' : '土压力计';
+    const deviceId = `${deviceType}${i}`;
+    const unitId = `pt-${i}`;
+    
+    pMeta[unitId] = deviceType === 'STRESS'
+      ? { id: unitId, type: deviceType, alarmIdx, isOnline, deviceId, region: regDef.name, isOnDetectionLine, subType: stressSub }
+      : { id: unitId, type: deviceType, alarmIdx, isOnline, deviceId, region: regDef.name, isOnDetectionLine };
+
+    units.push({
+      code: deviceId,
+      unitId,
+      type: 'sensor',
+      deviceType,
+      alarmIdx,
+      isOnline,
+      region: regDef.name,
+      isOnDetectionLine,
+      color: dashboardSensorColors[deviceType] || '#66B1FF',
+      x: world.x,
+      z: world.z,
+      blink: isOnline && alarmIdx === 0
+    });
+  }
+  return units;
+};
+
+const getTechData = (type, id) => {
+  const meta = pMeta[id];
+  if (!meta) return '设备信息获取失败';
+  
+  const seed = parseInt(id.replace('pt-', '')) || 0;
+  const variance = (seed % 10) * 0.1;
+  let speed = 0.5;
+  switch (meta.alarmIdx) {
+    case 0: speed = 8.1 + variance * 3.5; break;
+    case 1: speed = 5.1 + variance * 2.5; break;
+    case 2: speed = 4.1 + variance * 0.8; break;
+    case 3: speed = 3.1 + variance * 0.8; break;
+    default: speed = 0.5 + (seed % 5) * 0.4;
+  }
+  const totalDisp = (speed * 24).toFixed(2);
+  const specs = {
+    'GNSS': `累计位移: ${totalDisp} mm<br>当前速度: ${speed.toFixed(2)} mm/h<br>X/Y/H变化: ${(totalDisp * 0.55).toFixed(2)}/${(totalDisp * 0.35).toFixed(2)}/${(totalDisp * 0.10).toFixed(2)} mm`,
+    'RADAR': `视在形变: ${totalDisp} mm<br>反射强度: -12.4 dB<br>相干性: 0.98`,
+    'DEEP': `深层位移: ${totalDisp} mm<br>测斜深度: 45.0 m`,
+    'SURFACE': `裂缝宽度: ${(totalDisp / 10).toFixed(2)} mm<br>张开速率: ${(speed / 10).toFixed(2)} mm/d`,
+    'FIRE': `表面温度: ${(25 + parseFloat(totalDisp) / 15).toFixed(1)} ℃<br>CO浓度: 12 ppm`,
+    'WATER': `实时水位: ${(120 - totalDisp / 100).toFixed(2)} m<br>水温: 14.2 ℃`,
+    'GROUND': `水位深度: ${(80 + parseFloat(totalDisp) / 5).toFixed(2)} m<br>水位变化: +${(speed * 0.5).toFixed(2)} mm/h`,
+    'STRESS': `应力/压力: ${(2.5 + speed * 0.15).toFixed(2)} kPa<br>类型: ${meta.subType || '—'}`,
+    'VIB': `振动速度峰值: ${speed.toFixed(2)} cm/s<br>主频: ${(10 + (seed % 5)).toFixed(1)} Hz`
+  };
+  const content = specs[type] || `设备状态: 运行正常<br>当前速度: ${speed.toFixed(2)} mm/h`;
+  if (type !== 'SURFACE') {
+    const placeholder = `<div style="width:100%; height:80px; background:#e0e0e0; border-radius:4px; margin-bottom:8px; display:flex; align-items:center; justify-content:center; color:#666; font-size:12px;">📷 现场抓拍</div>`;
+    return placeholder + content;
+  }
+  return content;
+};
+
 const mapUnits = [
   { code: 'P-31', type: 'person', color: '#62d0ff', x: 30, z: 19, blink: true },
   { code: 'P-07', type: 'person', color: '#62d0ff', x: 32, z: 31, blink: false },
@@ -596,7 +941,8 @@ const mapUnits = [
   { code: 'EX-07', type: 'equipment', color: '#ff9d5c', x: 16, z: 34 },
   { code: 'T-05', type: 'vehicle', color: '#ffd166', x: 43, z: 16 },
   { code: 'T-11', type: 'vehicle', color: '#ffd166', x: 56, z: 2 },
-  { code: 'EQ-14', type: 'equipment', color: '#7ed9a3', x: -34, z: -38 }
+  { code: 'EQ-14', type: 'equipment', color: '#7ed9a3', x: -34, z: -38 },
+  ...createDashboardSensorUnits()
 ];
 
 const mapRoutes = [
@@ -674,7 +1020,7 @@ const createSpotTexture = () => {
   return new THREE.CanvasTexture(canvas);
 };
 
-const createMapMarkerTexture = (type, color, code) => {
+const createMapMarkerTexture = (type, color, code, deviceType = '') => {
   const scale = 2;
   const canvas = document.createElement('canvas');
   canvas.width = 256 * scale;
@@ -704,6 +1050,26 @@ const createMapMarkerTexture = (type, color, code) => {
     ctx.arc(92 * scale, 170 * scale, 18 * scale, 0, Math.PI * 2);
     ctx.arc(166 * scale, 170 * scale, 18 * scale, 0, Math.PI * 2);
     ctx.fill();
+  } else if (type === 'sensor') {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(128 * scale, 120 * scale, 40 * scale, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#0d2744';
+    ctx.beginPath();
+    ctx.arc(128 * scale, 120 * scale, 25 * scale, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#dff1ff';
+    ctx.font = `bold ${12 * scale}px "Microsoft YaHei", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const sensorIcon = dashboardSensorIcons[deviceType] || '📡';
+    ctx.font = `${22 * scale}px "Segoe UI Emoji", "Apple Color Emoji", "Microsoft YaHei", sans-serif`;
+    ctx.fillText(sensorIcon, 128 * scale, 102 * scale);
+    ctx.font = `bold ${11 * scale}px "Microsoft YaHei", sans-serif`;
+    ctx.fillText((deviceType || code).slice(0, 6), 128 * scale, 134 * scale);
   } else {
     ctx.fillStyle = color;
     ctx.fillRect(74 * scale, 120 * scale, 108 * scale, 42 * scale);
@@ -860,7 +1226,7 @@ const initMap = () => {
 
   mapUnits.forEach((unit) => {
     const y = getTerrainHeight(unit.x, unit.z);
-    const iconTexture = createMapMarkerTexture(unit.type, unit.color, unit.code);
+    const iconTexture = createMapMarkerTexture(unit.type, unit.color, unit.code, unit.deviceType);
     const spriteMaterial = new THREE.SpriteMaterial({
       map: iconTexture,
       transparent: true,
@@ -871,10 +1237,12 @@ const initMap = () => {
     const sprite = new THREE.Sprite(spriteMaterial);
     sprite.renderOrder = 10;
     sprite.position.set(unit.x, y, unit.z);
-    sprite.scale.set(12, 12, 1);
+    const baseScale = unit.type === 'sensor' ? 7.5 : 16;
+    sprite.scale.set(baseScale, baseScale, 1);
     sprite.center.set(0.5, 1 - 160 / 256);
     sprite.userData.isBlinking = Boolean(unit.blink);
-    sprite.userData.baseScale = 12;
+    sprite.userData.baseScale = baseScale;
+    sprite.userData.unit = unit;
     pointGroup.add(sprite);
     pointSprites.set(unit.code, sprite);
   });
@@ -915,6 +1283,97 @@ const initMap = () => {
 
   scene.add(routeGroup);
 
+  const showTooltip = (unit, event) => {
+    const tt = document.getElementById('map-tooltip');
+    if (!tt || !unit.isOnline) return;
+    
+    const content = `<b style="color:#85C6F1;">[${unit.region}] ${unit.code}</b><hr style='margin:5px 0; opacity:0.2'>${getTechData(unit.deviceType, unit.unitId)}`;
+    tt.innerHTML = content;
+    tt.style.display = 'block';
+    tt.style.left = event.clientX + 15 + 'px';
+    tt.style.top = event.clientY + 15 + 'px';
+  };
+
+  const hideTooltip = () => {
+    const tt = document.getElementById('map-tooltip');
+    if (tt) tt.style.display = 'none';
+  };
+
+  const handleSensorClick = (unit) => {
+    if (!unit.isOnline) return;
+    
+    const noModuleTypes = ['SURFACE', 'SAT'];
+    if (noModuleTypes.includes(unit.deviceType)) return;
+    
+    const analysisModule = window.analysisModule;
+    const modules = {
+      GNSS: analysisModule,
+      DEEP: window.deepAnalysisModule,
+      RADAR: window.radarAnalysisModule,
+      CRACK: window.crackAnalysisModule,
+      FIRE: window.fireAnalysisModule,
+      WATER: window.waterAnalysisModule,
+      GROUND: window.groundAnalysisModule,
+      STRESS: window.yingliAnalysisModule,
+      VIB: window.vibAnalysisModule
+    };
+    
+    const module = modules[unit.deviceType];
+    if (module && typeof module.open === 'function') {
+      const meta = pMeta[unit.unitId];
+      if (meta) {
+        module.open(meta);
+      }
+    }
+  };
+
+  mapClickHandler = (event) => {
+    if (!renderer || !camera) return;
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+
+    const clickableSprites = Array.from(pointSprites.values());
+    const intersects = raycaster.intersectObjects(clickableSprites, false);
+    const hit = intersects[0]?.object;
+    if (!hit) return;
+
+    const unit = hit.userData?.unit;
+    if (!unit) return;
+    
+    if (unit.type === 'sensor') {
+      handleSensorClick(unit);
+      return;
+    }
+    focusUnit(unit.code);
+  };
+
+  const mapMouseMoveHandler = (event) => {
+    if (!renderer || !camera) return;
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+
+    const clickableSprites = Array.from(pointSprites.values());
+    const intersects = raycaster.intersectObjects(clickableSprites, false);
+    const hit = intersects[0]?.object;
+    
+    if (hit) {
+      const unit = hit.userData?.unit;
+      if (unit && unit.type === 'sensor') {
+        showTooltip(unit, event);
+        return;
+      }
+    }
+    hideTooltip();
+  };
+
+  renderer.domElement.addEventListener('click', mapClickHandler);
+  renderer.domElement.addEventListener('mousemove', mapMouseMoveHandler);
+  renderer.domElement.addEventListener('mouseleave', hideTooltip);
+
   const gridHelper = new THREE.GridHelper(200, 30, 0x2452a4, 0x17396e);
   gridHelper.position.y = -10;
   gridHelper.material.opacity = 0.18;
@@ -927,6 +1386,12 @@ const initMap = () => {
 
     pointSprites.forEach((sprite, code) => {
       const isSelected = selectedUnitCode.value === code;
+      const unitType = sprite.userData?.unit?.type;
+      if (unitType === 'sensor') {
+        const baseScale = sprite.userData.baseScale || 7.5;
+        sprite.scale.set(baseScale, baseScale, 1);
+        return;
+      }
       const isBlinking = sprite.userData.isBlinking;
       const baseScale = sprite.userData.baseScale || 12;
       const pulse = isSelected ? 2.4 : isBlinking ? 1.2 : 0;
@@ -954,6 +1419,32 @@ const handleResize = () => {
 onMounted(() => {
   initMap();
   window.addEventListener('resize', handleResize);
+  
+  const deepHost = document.getElementById('deep-modal-root');
+  if (deepHost) deepHost.innerHTML = getDeepModalMarkup();
+
+  const radarHost = document.getElementById('radar-modal-root');
+  if (radarHost) radarHost.innerHTML = getRadarModalMarkup();
+
+  const crackHost = document.getElementById('crack-modal-root');
+  if (crackHost) crackHost.innerHTML = getCrackModalMarkup();
+
+  const fireHost = document.getElementById('fire-modal-root');
+  if (fireHost) fireHost.innerHTML = getFireModalMarkup();
+
+  const waterHost = document.getElementById('water-modal-root');
+  if (waterHost) waterHost.innerHTML = getWaterModalMarkup();
+
+  const groundHost = document.getElementById('ground-modal-root');
+  if (groundHost) groundHost.innerHTML = getGroundModalMarkup();
+
+  const yingliHost = document.getElementById('yingli-modal-root');
+  if (yingliHost) yingliHost.innerHTML = getYingliModalMarkup();
+
+  const vibHost = document.getElementById('vib-modal-root');
+  if (vibHost) vibHost.innerHTML = getVibModalMarkup();
+
+  window.mapModule = { pMeta };
 });
 
 onUnmounted(() => {
@@ -967,6 +1458,10 @@ onUnmounted(() => {
   });
   if (controls) controls.dispose();
   if (renderer) {
+    if (mapClickHandler) {
+      renderer.domElement.removeEventListener('click', mapClickHandler);
+      mapClickHandler = null;
+    }
     renderer.dispose();
     if (renderer.domElement?.parentNode) {
       renderer.domElement.parentNode.removeChild(renderer.domElement);
@@ -977,36 +1472,50 @@ onUnmounted(() => {
 
 <style scoped>
 .emergency-page {
-  height: calc(100vh - 112px);
+  height: 100%;
   min-height: 0;
+  width: 100%;
   color: #dce9ff;
   overflow: hidden;
+  box-sizing: border-box;
+}
+
+.emergency-command-board {
+  height: calc(100% - 10px);
+  min-height: 0;
+  width: calc(100% - 10px);
+  padding: 0;
+  margin: 5px auto;
+  border-radius: 0;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(28, 61, 144, 0.08);
+  box-shadow: 0 18px 40px rgba(28, 61, 144, 0.08);
+  box-sizing: border-box;
 }
 
 .emergency-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(360px, 0.86fr);
-  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) 450px;
+  gap: 12px;
   height: 100%;
   min-height: 0;
+  box-sizing: border-box;
 }
 
 .panel,
 .map-panel {
-  border-radius: 24px;
+  border-radius: 0;
   overflow: hidden;
-  border: 1px solid rgba(91, 144, 255, 0.16);
-  box-shadow: 0 24px 60px rgba(6, 19, 39, 0.22);
+  border: 1px solid rgba(28, 61, 144, 0.16);
+  box-shadow: none;
 }
 
 .map-panel {
   position: relative;
   min-height: 0;
   height: 100%;
-  background:
-    radial-gradient(circle at top left, rgba(46, 107, 255, 0.2), transparent 28%),
-    radial-gradient(circle at bottom right, rgba(79, 215, 255, 0.16), transparent 26%),
-    linear-gradient(160deg, #091726 0%, #0c1d31 48%, #0b1830 100%);
+  background: #0b1a31;
+  border-color: #1c3d90;
 }
 
 .three-viewport {
@@ -1223,10 +1732,46 @@ onUnmounted(() => {
   gap: 10px;
 }
 
+.steps-level-switch {
+  margin-top: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.steps-level-switch span {
+  font-size: 12px;
+  color: #6d87b0;
+  font-weight: 700;
+}
+
+.steps-level-options {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.steps-level-option {
+  border: 1px solid rgba(74, 120, 193, 0.2);
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: #eef4ff;
+  color: #2f5da4;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.steps-level-option.active {
+  color: #fff;
+  background: linear-gradient(135deg, #2f72d8, #2353ab);
+  border-color: rgba(46, 106, 197, 0.42);
+}
+
 .steps-manage-head,
 .steps-manage-row {
   display: grid;
-  grid-template-columns: 56px 1.5fr 1fr 0.8fr 0.8fr;
+  grid-template-columns: 52px 56px 1.5fr 1fr 0.8fr 0.8fr;
   gap: 10px;
   align-items: center;
   padding: 10px 12px;
@@ -1247,6 +1792,14 @@ onUnmounted(() => {
 
 .steps-manage-row strong {
   color: #5f7eb2;
+}
+
+.steps-manage-check {
+  width: 16px;
+  height: 16px;
+  justify-self: center;
+  accent-color: #2f72d8;
+  cursor: pointer;
 }
 
 .steps-manage-row input,
@@ -1388,14 +1941,53 @@ onUnmounted(() => {
   padding: 14px 16px;
 }
 
+.steps-panel .panel-head {
+  align-items: center;
+}
+
+.steps-panel .panel-head > div:first-child {
+  min-width: 0;
+}
+
+.steps-panel .panel-head h3 {
+  white-space: nowrap;
+}
+
+.steps-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+}
+
+.plan-level-select {
+  width: 106px;
+  min-width: 106px;
+  border: 1px solid rgba(74, 120, 193, 0.2);
+  border-radius: 999px;
+  padding: 8px 10px;
+  background: #eef4ff;
+  color: #2f5da4;
+  font-size: 12px;
+  font-weight: 700;
+  outline: none;
+}
+
+.steps-head-actions .status-action-btn {
+  white-space: nowrap;
+  padding: 8px 12px;
+}
+
 .steps-tag {
   justify-content: center;
-  min-width: 96px;
-  padding: 7px 12px;
+  min-width: 90px;
+  padding: 7px 10px;
   color: #fff;
   background: linear-gradient(135deg, #2f72d8, #2353ab);
   border: 1px solid rgba(46, 106, 197, 0.3);
   font-size: 12px;
+  white-space: nowrap;
 }
 
 .steps-table {
@@ -1559,6 +2151,11 @@ onUnmounted(() => {
     overflow: visible;
   }
 
+  .emergency-command-board {
+    height: auto;
+    min-height: auto;
+  }
+
   .modal-summary-grid,
   .modal-form-grid {
     grid-template-columns: 1fr 1fr;
@@ -1566,7 +2163,7 @@ onUnmounted(() => {
 
   .steps-manage-head,
   .steps-manage-row {
-    grid-template-columns: 48px 1.2fr 1fr 0.9fr 0.9fr;
+    grid-template-columns: 44px 48px 1.2fr 1fr 0.9fr 0.9fr;
   }
 }
 
@@ -1622,6 +2219,33 @@ onUnmounted(() => {
     margin: 14px;
     display: inline-flex;
   }
+}
+
+.map-tooltip {
+  display: none;
+  position: fixed;
+  z-index: 9999;
+  max-width: 280px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(10, 26, 42, 0.95);
+  border: 1px solid rgba(133, 198, 241, 0.25);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+  color: #dce9ff;
+  font-size: 12px;
+  line-height: 1.6;
+  pointer-events: none;
+}
+
+.map-tooltip b {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.map-tooltip hr {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin: 8px 0;
 }
 </style>
 

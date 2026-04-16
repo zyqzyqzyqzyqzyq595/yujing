@@ -19,7 +19,7 @@ import AppBackground from './components/AppBackground.vue';
 
 // 导入 6 个滑坡预警核心模块
 import Dashboard from './views/1_Dashboard/1_Dashboard.vue';
-import WorkOrder from './views/2_WorkOrder.vue';
+import WorkOrder from './views/2_WorkOrder/2_WorkOrder.vue';
 import DecisionSupport from './views/3_DecisionSupport/3_DecisionSupport.vue';
 import EmergencyPlan from './views/4_EmergencyPlan.vue';
 import DeviceLinkage from './views/5_DeviceLinkage.vue';
