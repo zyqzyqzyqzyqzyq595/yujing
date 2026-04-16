@@ -1,15 +1,3 @@
-我已经根据您的需求，为「层级化联系人」模块的左侧组织架构树添加了点击交互功能。
-
-**核心改动说明：**
-1. **左侧菜单联动**：现在点击“生产技术部”、“安全监察部”或“调度指挥中心”，左侧树节点会高亮显示选中状态，右侧的联系人表格会**实时过滤**并展示对应部门的人员数据。
-2. **新增/编辑/删除逻辑适配**：
-- 点击“新增联系人”时，表单中的“所属部门”会自动默认填写为您当前选中的部门。
-- 编辑和删除功能已经完美适配了动态过滤逻辑，无论在哪个部门下操作，都能精确修改或删除原始数据，不会出现错乱。
-3. **补充演示数据**：为了让您马上看到点击“安全监察部”的切换效果，我在底层的模拟数据中为您预置了一条安全监察部的联系人数据。
-
-其他所有模块代码（预警闭环、通知规则配置）均保持原封不动。以下是完整的代码：
-
-```vue
 <template>
   <div class="view-container">
     <aside class="sidebar">
@@ -38,20 +26,35 @@
             <h3>时间轴（预警推送及处理进程）- 点击节点查看详情</h3>
           </div>
           <div class="timeline-wrapper">
+            <div class="timeline-step clickable" :class="getTimelineStatus('capture')" @click="activeTimelineModal = 'capture'">
+              <div class="step-node"></div>
+              <div class="step-label">摄像头抓拍</div>
+              <div class="step-time">{{ getTimelineTime('capture') }}</div>
+            </div>
+            <div class="timeline-line"></div>
+
             <div class="timeline-step clickable" :class="getTimelineStatus('push')" @click="activeTimelineModal = 'push'">
-              <div class="step-node"></div><div class="step-label">自动推送</div>
+              <div class="step-node"></div>
+              <div class="step-label">自动推送</div>
+              <div class="step-time">{{ getTimelineTime('push') }}</div>
             </div>
             <div class="timeline-line"></div>
             <div class="timeline-step clickable" :class="getTimelineStatus('consult')" @click="activeTimelineModal = 'consult'">
-              <div class="step-node"></div><div class="step-label">多方会商</div>
+              <div class="step-node"></div>
+              <div class="step-label">多方会商</div>
+              <div class="step-time">{{ getTimelineTime('consult') }}</div>
             </div>
             <div class="timeline-line"></div>
             <div class="timeline-step clickable" :class="getTimelineStatus('process')" @click="activeTimelineModal = 'process'">
-              <div class="step-node"></div><div class="step-label">隐患处理</div>
+              <div class="step-node"></div>
+              <div class="step-label">隐患处理</div>
+              <div class="step-time">{{ getTimelineTime('process') }}</div>
             </div>
             <div class="timeline-line"></div>
             <div class="timeline-step" :class="getTimelineStatus('archive')">
-              <div class="step-node"></div><div class="step-label">跟踪归档</div>
+              <div class="step-node"></div>
+              <div class="step-label">跟踪归档</div>
+              <div class="step-time">{{ getTimelineTime('archive') }}</div>
             </div>
           </div>
         </div>
@@ -179,20 +182,49 @@
           <div class="sys-card tree-sidebar">
             <div class="card-header"><h3>矿山组织架构树</h3></div>
             <div class="org-tree-mock">
-              <div class="tree-node">▼ 内蒙古能源有限公司</div>
-              <div class="tree-node" style="padding-left: 20px;">▼ 露天煤矿</div>
-              <div class="tree-node"
-                   :class="{ 'active-node': activeDept === '生产技术部' }"
-                   @click="activeDept = '生产技术部'"
-                   style="padding-left: 40px;">- 生产技术部</div>
-              <div class="tree-node"
-                   :class="{ 'active-node': activeDept === '安全监察部' }"
-                   @click="activeDept = '安全监察部'"
-                   style="padding-left: 40px;">- 安全监察部</div>
-              <div class="tree-node"
-                   :class="{ 'active-node': activeDept === '调度指挥中心' }"
-                   @click="activeDept = '调度指挥中心'"
-                   style="padding-left: 40px;">- 调度指挥中心</div>
+              <div class="tree-node" @click="toggleTree('red')" style="font-weight: bold; color: #f5222d;">
+                {{ expandedLevels.includes('red') ? '▼' : '▶' }} 红色预警 (一级)
+              </div>
+              <div v-if="expandedLevels.includes('red')">
+                <div class="tree-node" v-for="dept in levelsData.red" :key="'red-'+dept"
+                     :class="{ 'active-node': activeDept === dept && activeLevel === 'red' }"
+                     @click="selectDept(dept, 'red')" style="padding-left: 30px;">
+                  - {{ dept }}
+                </div>
+              </div>
+
+              <div class="tree-node" @click="toggleTree('orange')" style="font-weight: bold; color: #fa8c16; margin-top: 8px;">
+                {{ expandedLevels.includes('orange') ? '▼' : '▶' }} 橙色预警 (二级)
+              </div>
+              <div v-if="expandedLevels.includes('orange')">
+                <div class="tree-node" v-for="dept in levelsData.orange" :key="'orange-'+dept"
+                     :class="{ 'active-node': activeDept === dept && activeLevel === 'orange' }"
+                     @click="selectDept(dept, 'orange')" style="padding-left: 30px;">
+                  - {{ dept }}
+                </div>
+              </div>
+
+              <div class="tree-node" @click="toggleTree('yellow')" style="font-weight: bold; color: #faad14; margin-top: 8px;">
+                {{ expandedLevels.includes('yellow') ? '▼' : '▶' }} 黄色预警 (三级)
+              </div>
+              <div v-if="expandedLevels.includes('yellow')">
+                <div class="tree-node" v-for="dept in levelsData.yellow" :key="'yellow-'+dept"
+                     :class="{ 'active-node': activeDept === dept && activeLevel === 'yellow' }"
+                     @click="selectDept(dept, 'yellow')" style="padding-left: 30px;">
+                  - {{ dept }}
+                </div>
+              </div>
+
+              <div class="tree-node" @click="toggleTree('blue')" style="font-weight: bold; color: #1890ff; margin-top: 8px;">
+                {{ expandedLevels.includes('blue') ? '▼' : '▶' }} 蓝色预警 (四级)
+              </div>
+              <div v-if="expandedLevels.includes('blue')">
+                <div class="tree-node" v-for="dept in levelsData.blue" :key="'blue-'+dept"
+                     :class="{ 'active-node': activeDept === dept && activeLevel === 'blue' }"
+                     @click="selectDept(dept, 'blue')" style="padding-left: 30px;">
+                  - {{ dept }}
+                </div>
+              </div>
             </div>
           </div>
           <div class="sys-card list-content">
@@ -440,27 +472,65 @@
         </div>
       </div>
 
+      <div v-if="activeTimelineModal === 'capture'" class="modal-overlay">
+        <div class="modal-content" style="width: 600px;">
+          <div class="modal-header">
+            <h3>摄像头现场抓拍详情</h3>
+            <span class="close-btn" @click="activeTimelineModal = null">×</span>
+          </div>
+          <div class="modal-body">
+            <div class="form-grid">
+              <div class="form-item full-width">
+                <label>抓拍预警时间</label>
+                <div class="info-text">{{ selectedRecord ? selectedRecord.time : 'N/A' }}</div>
+              </div>
+              <div class="form-item full-width">
+                <label>触发抓拍区域</label>
+                <div class="info-text">{{ selectedRecord ? selectedRecord.area : 'N/A' }}</div>
+              </div>
+              <div class="form-item full-width">
+                <label>现场抓拍画面</label>
+                <div class="upload-area" style="padding: 40px;">
+                  <span class="upload-tip">现场抓拍记录已归档，点击此处可查看大图</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn-cancel" @click="activeTimelineModal = null">关闭</button>
+          </div>
+        </div>
+      </div>
+
       <div v-if="activeTimelineModal === 'push'" class="modal-overlay">
         <div class="modal-content" style="width: 600px;">
           <div class="modal-header">
             <h3>自动推送触达详情</h3>
             <span class="close-btn" @click="activeTimelineModal = null">×</span>
           </div>
-          <div class="modal-body" style="padding: 0;">
+          <div class="modal-body" style="padding: 0; max-height: 60vh; overflow-y: auto;">
             <table class="sys-table" style="margin: 0;">
               <thead>
-              <tr><th>对应预警级别</th><th>通知人员</th><th>是否已读</th></tr>
+              <tr>
+                <th style="width: 150px; text-align: center;">对应预警级别</th>
+                <th>通知人员</th>
+                <th style="width: 100px;">是否已读</th>
+              </tr>
               </thead>
               <tbody>
-              <tr v-for="(log, i) in pushDetails" :key="i">
-                <td><span :class="['level-tag', log.levelClass]">{{ log.levelText }}</span></td>
-                <td>{{ log.staff }}</td>
-                <td>
-                    <span :style="{ color: log.isRead === '已读' ? '#52c41a' : '#f5222d', fontWeight: 'bold' }">
-                      {{ log.isRead }}
+              <template v-for="(log, i) in pushDetails">
+                <tr v-for="(target, j) in log.targets" :key="i + '-' + j">
+                  <td v-if="j === 0" :rowspan="log.targets.length" style="vertical-align: middle; border-right: 1px solid #ebeef5; text-align: center;">
+                    <span :class="['level-tag', log.levelClass]">{{ log.levelText }}</span>
+                  </td>
+                  <td style="border-right: 1px solid #ebeef5;">{{ target.dept }}</td>
+                  <td>
+                    <span :style="{ color: target.isRead === '已读' ? '#52c41a' : '#f5222d', fontWeight: 'bold' }">
+                      {{ target.isRead }}
                     </span>
-                </td>
-              </tr>
+                  </td>
+                </tr>
+              </template>
               </tbody>
             </table>
           </div>
@@ -556,8 +626,16 @@ export default {
 
       selectedRecord: null,
 
-      // 新增：跟踪左侧组织架构树中当前选中的部门
-      activeDept: '调度指挥中心',
+      // --- 树形结构核心状态变量 ---
+      activeDept: '总经理(矿长)',
+      activeLevel: 'red',
+      expandedLevels: ['red', 'orange', 'yellow', 'blue'],
+      levelsData: {
+        red: ['总经理(矿长)', '煤矿领导层', '上级监管部门', '政府监管部门', '内蒙古公司董事长', '总调度室', '集团应急指挥层'],
+        orange: ['安监部', '部门主任', '煤矿总工程师', '总经理(矿长)', '煤矿领导层', '上级监管部门', '政府监管部门'],
+        yellow: ['班组安全员', '调度室值班人员', '边坡业务主管部门', '安监部', '部门主任', '煤矿总工程师', '总经理(矿长)'],
+        blue: ['班组安全员', '调度室值班人员', '边坡业务主管部门', '安监部']
+      },
 
       consultationStaffList: [
         '张经理 (总调度)',
@@ -619,11 +697,53 @@ export default {
         thresholdFeatures: '', geoDetails: '', treatmentPlan: '', constructionPoints: '', finalEvaluation: ''
       },
 
+      // 更新：自动推送详情数据结构扩充，拆分为独立目标人员及已读状态
       pushDetails: [
-        { levelText: '红色预警 (一级)', levelClass: 'red', staff: '内蒙古公司董事长, 总调度室', isRead: '已读' },
-        { levelText: '橙色预警 (二级)', levelClass: 'orange', staff: '煤矿领导层, 政府监管部门', isRead: '未读' },
-        { levelText: '黄色预警 (三级)', levelClass: 'yellow', staff: '煤矿总工程师, 总经理', isRead: '已读' },
-        { levelText: '蓝色预警 (四级)', levelClass: 'blue', staff: '相关班组安全员', isRead: '已读' }
+        {
+          levelText: '红色预警 (一级)', levelClass: 'red',
+          targets: [
+            { dept: '总经理(矿长)', isRead: '已读' },
+            { dept: '煤矿领导层', isRead: '已读' },
+            { dept: '上级监管部门', isRead: '未读' },
+            { dept: '政府监管部门', isRead: '已读' },
+            { dept: '内蒙古公司董事长', isRead: '未读' },
+            { dept: '总调度室', isRead: '已读' },
+            { dept: '集团应急指挥层', isRead: '已读' }
+          ]
+        },
+        {
+          levelText: '橙色预警 (二级)', levelClass: 'orange',
+          targets: [
+            { dept: '安监部', isRead: '已读' },
+            { dept: '部门主任', isRead: '已读' },
+            { dept: '煤矿总工程师', isRead: '已读' },
+            { dept: '总经理(矿长)', isRead: '未读' },
+            { dept: '煤矿领导层', isRead: '已读' },
+            { dept: '上级监管部门', isRead: '未读' },
+            { dept: '政府监管部门', isRead: '已读' }
+          ]
+        },
+        {
+          levelText: '黄色预警 (三级)', levelClass: 'yellow',
+          targets: [
+            { dept: '班组安全员', isRead: '已读' },
+            { dept: '调度室值班人员', isRead: '已读' },
+            { dept: '边坡业务主管部门', isRead: '已读' },
+            { dept: '安监部', isRead: '未读' },
+            { dept: '部门主任', isRead: '已读' },
+            { dept: '煤矿总工程师', isRead: '已读' },
+            { dept: '总经理(矿长)', isRead: '已读' }
+          ]
+        },
+        {
+          levelText: '蓝色预警 (四级)', levelClass: 'blue',
+          targets: [
+            { dept: '班组安全员', isRead: '已读' },
+            { dept: '调度室值班人员', isRead: '未读' },
+            { dept: '边坡业务主管部门', isRead: '已读' },
+            { dept: '安监部', isRead: '已读' }
+          ]
+        }
       ],
 
       tableData: [
@@ -634,10 +754,19 @@ export default {
       ],
 
       contactData: [
-        { name: '张经理', account: 'admin_01', phone: '138****0001', dept: '调度指挥中心', position: '主任', level: '一级', levelClass: 'red' },
-        { name: '王工', account: 'tech_02', phone: '139****0002', dept: '生产技术部', position: '技术员', level: '四级', levelClass: 'blue' },
-        // 新增：补充演示数据
-        { name: '孙主任', account: 'safe_01', phone: '137****0003', dept: '安全监察部', position: '监察室主任', level: '三级', levelClass: 'yellow' }
+        { name: '王矿长', account: 'admin_01', phone: '138****0001', dept: '总经理(矿长)', position: '矿长', level: '一级', levelClass: 'red' },
+        { name: '李书记', account: 'ldc_01', phone: '139****0002', dept: '煤矿领导层', position: '书记', level: '一级', levelClass: 'red' },
+        { name: '赵局长', account: 'sjjg_01', phone: '137****0003', dept: '上级监管部门', position: '局长', level: '一级', levelClass: 'red' },
+        { name: '钱主任', account: 'zf_01', phone: '136****0004', dept: '政府监管部门', position: '主任', level: '一级', levelClass: 'red' },
+        { name: '孙董事长', account: 'dsz_01', phone: '135****0005', dept: '内蒙古公司董事长', position: '董事长', level: '一级', levelClass: 'red' },
+        { name: '周调度', account: 'dd_01', phone: '134****0006', dept: '总调度室', position: '总调度', level: '一级', levelClass: 'red' },
+        { name: '吴总指', account: 'yj_01', phone: '133****0007', dept: '集团应急指挥层', position: '总指挥', level: '一级', levelClass: 'red' },
+        { name: '郑部长', account: 'aj_01', phone: '132****0008', dept: '安监部', position: '安监部长', level: '二级', levelClass: 'orange' },
+        { name: '冯主任', account: 'bm_01', phone: '131****0009', dept: '部门主任', position: '主任', level: '二级', levelClass: 'orange' },
+        { name: '陈总工', account: 'zg_01', phone: '130****0010', dept: '煤矿总工程师', position: '总工', level: '二级', levelClass: 'orange' },
+        { name: '蒋安全', account: 'aq_01', phone: '157****0013', dept: '班组安全员', position: '安全员', level: '四级', levelClass: 'blue' },
+        { name: '褚值班', account: 'zb_01', phone: '158****0011', dept: '调度室值班人员', position: '值班员', level: '三级', levelClass: 'yellow' },
+        { name: '卫主管', account: 'bp_01', phone: '159****0012', dept: '边坡业务主管部门', position: '业务主管', level: '三级', levelClass: 'yellow' }
       ],
 
       editingContactIndex: -1,
@@ -660,7 +789,6 @@ export default {
         return matchTime && matchLevel && matchArea;
       });
     },
-    // 新增：根据当前选中的左侧树节点部门，过滤右侧表格要展示的人员数据
     filteredContacts() {
       if (!this.activeDept) return this.contactData;
       return this.contactData.filter(item => item.dept === this.activeDept);
@@ -672,6 +800,19 @@ export default {
     }
   },
   methods: {
+    toggleTree(level) {
+      const idx = this.expandedLevels.indexOf(level);
+      if (idx > -1) {
+        this.expandedLevels.splice(idx, 1);
+      } else {
+        this.expandedLevels.push(level);
+      }
+    },
+    selectDept(dept, level) {
+      this.activeDept = dept;
+      this.activeLevel = level;
+    },
+
     selectRecord(item) {
       this.selectedRecord = item;
     },
@@ -682,18 +823,52 @@ export default {
       const status = this.selectedRecord.status;
       const isClosed = this.selectedRecord.isClosed === '是';
 
-      let currentIdx = 0;
-      if (status === '会商中') currentIdx = 1;
-      else if (status === '待处理' || status === '处理中') currentIdx = 2;
-      else if (status === '已完成') currentIdx = 3;
+      let currentIdx = 1; // 默认前置阶段(抓拍)完成，自动推送至少到达
+      if (status === '会商中') currentIdx = 2;
+      else if (status === '待处理' || status === '处理中') currentIdx = 3;
+      else if (status === '已完成') currentIdx = 4;
 
-      if (isClosed) currentIdx = 4;
+      if (isClosed) currentIdx = 5;
 
-      const stepIdx = { 'push': 0, 'consult': 1, 'process': 2, 'archive': 3 }[stepName];
+      const stepIdx = { 'capture': 0, 'push': 1, 'consult': 2, 'process': 3, 'archive': 4 }[stepName];
 
       if (stepIdx < currentIdx) return 'completed';
       if (stepIdx === currentIdx && !isClosed) return 'active';
-      if (stepIdx === 3 && isClosed) return 'completed';
+      if (stepIdx === 4 && isClosed) return 'completed';
+
+      return '';
+    },
+
+    getTimelineTime(stepName) {
+      if (!this.selectedRecord) return '';
+      let timeStr = this.selectedRecord.time;
+      let baseTime = new Date(timeStr.replace(' ', 'T'));
+      if (isNaN(baseTime.getTime())) return '';
+
+      const format = (date) => {
+        const pad = (n) => (n < 10 ? '0' + n : n);
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+      };
+
+      const status = this.selectedRecord.status;
+      const isClosed = this.selectedRecord.isClosed === '是';
+
+      let currentIdx = 1;
+      if (status === '会商中') currentIdx = 2;
+      else if (status === '待处理' || status === '处理中') currentIdx = 3;
+      else if (status === '已完成') currentIdx = 4;
+      if (isClosed) currentIdx = 5;
+
+      const stepIdx = { 'capture': 0, 'push': 1, 'consult': 2, 'process': 3, 'archive': 4 }[stepName];
+
+      if (stepIdx > currentIdx && !(stepIdx === 4 && isClosed)) return '';
+      if (stepIdx === 4 && !isClosed) return '';
+
+      if (stepName === 'capture') return timeStr; // 抓拍时间就是预警发生时间
+      if (stepName === 'push') return format(new Date(baseTime.getTime() + 2 * 60000)); // 推送顺延2分钟
+      if (stepName === 'consult') return format(new Date(baseTime.getTime() + 15 * 60000));
+      if (stepName === 'process') return format(new Date(baseTime.getTime() + 45 * 60000));
+      if (stepName === 'archive') return format(new Date(baseTime.getTime() + 120 * 60000));
 
       return '';
     },
@@ -706,14 +881,12 @@ export default {
     },
 
     handleCreateContact() {
-      // 修改：点击新增联系人时，部门默认填入当前选中的组织树部门
       this.contactForm = { name: '', account: '', phone: '', dept: this.activeDept, position: '', level: '四级' };
       this.editingContactIndex = -1;
       this.showContactModal = true;
     },
 
     editContact(person) {
-      // 修改：由于 filteredContacts 和原本的 contactData 索引不同，通过传入整个对象查找其在全局数据中的真实索引
       const globalIndex = this.contactData.indexOf(person);
       this.contactForm = { ...person };
       this.editingContactIndex = globalIndex;
@@ -903,7 +1076,6 @@ export default {
   flex-shrink: 0;
 }
 
-/* ============ 检索区域样式 ============ */
 .search-section {
   display: flex;
   align-items: center;
@@ -930,7 +1102,6 @@ export default {
 .sys-table tbody tr { transition: background 0.2s; }
 .sys-table tbody tr:hover { background: #f0f7ff; }
 
-/* 选中高亮整行 */
 .sys-table tbody tr.active-row { background: #f0f5ff; }
 
 .td-desc { line-height: 1.6; color: #555; }
@@ -956,7 +1127,6 @@ export default {
 .status-pending { color: #909399; }
 .status-done { color: #52c41a; font-weight: bold; }
 
-/* 按钮样式 */
 .add-btn, .btn-confirm.ctrl-btn { background: #1c3d90; color: #fff; border: none; padding: 6px 15px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; transition: all 0.3s ease; }
 .add-btn:hover, .btn-confirm.ctrl-btn:hover { background: #2a4da8; box-shadow: 0 4px 8px rgba(28, 61, 144, 0.3); }
 .btn-cancel { background: #f5f5f5; border: 1px solid #dcdfe6; padding: 5px 15px; border-radius: 4px; cursor: pointer; margin-right: 10px; color: #606266; font-size: 12px; transition: all 0.3s; }
@@ -968,7 +1138,6 @@ export default {
 .btn-expert { background: #fff; border: 1px solid #fa8c16; color: #fa8c16; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; transition: all 0.3s; }
 .btn-expert:hover { background: #fa8c16; color: #fff; box-shadow: 0 2px 6px rgba(250, 140, 22, 0.2); }
 
-/* 文字按钮样式(编辑/删除) */
 .btn-text { background: transparent; border: none; cursor: pointer; padding: 4px 8px; font-size: 12px; transition: color 0.3s; outline: none; }
 .btn-text.edit { color: #1890ff; }
 .btn-text.edit:hover { color: #40a9ff; text-decoration: underline; }
@@ -987,6 +1156,16 @@ export default {
 .timeline-step.clickable:hover .step-node { transform: scale(1.15); }
 .step-node { width: 14px; height: 14px; border-radius: 50%; background: #dcdfe6; border: 3px solid #fff; box-shadow: 0 0 0 2px #dcdfe6; z-index: 2; transition: all 0.3s; }
 .step-label { margin-top: 8px; font-size: 12px; color: #606266; font-weight: bold; }
+
+.step-time {
+  position: absolute;
+  top: 100%;
+  margin-top: 5px;
+  font-size: 11px;
+  color: #909399;
+  white-space: nowrap;
+}
+
 .timeline-line { flex: 1; height: 2px; background: #ebeef5; max-width: 120px; margin: 0 -5px 20px; transition: background 0.3s; }
 .completed .step-node, .completed + .timeline-line { background: #52c41a; box-shadow: 0 0 0 2px #52c41a; }
 .active .step-node { background: #1c3d90; box-shadow: 0 0 0 2px #1c3d90; animation: breathe 2s infinite ease-in-out; }
@@ -1002,7 +1181,6 @@ export default {
 .role-tag { background: #eef5fe; color: #1c3d90; padding: 4px 8px; border-radius: 4px; font-size: 12px; border: 1px solid #c3e4fd; }
 .role-tag.secondary { background: #f4f4f5; color: #909399; border: 1px solid #e9e9eb; }
 
-/* 弹窗组件 */
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
 .modal-content { background: #fff; width: 520px; border-radius: 6px; box-shadow: 0 5px 20px rgba(0,0,0,0.2); animation: slideDown 0.3s ease-out; }
 @keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
@@ -1024,4 +1202,3 @@ export default {
 .upload-area:hover { background: #f0f7ff; border-color: #1c3d90; }
 .upload-tip { font-size: 12px; color: #909399; }
 </style>
-```

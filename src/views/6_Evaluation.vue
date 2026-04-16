@@ -42,22 +42,25 @@
     </div>
 
     <div class="kpi-container">
-      <div class="kpi-card">
+      <div class="kpi-card" title="【数据来源】系统无法自动感知漏报，由现场人工巡查或突发上报后，管理员事后手动补录。&#10;【评价标准】安全性底线（高压线），该指标应无限趋近于0%。若偏高需立即排查监测盲区或设备掉线情况。">
         <div class="kpi-header">漏报率</div>
         <div class="kpi-value warning-text">{{ kpiData.missRate }}%</div>
         <div class="kpi-desc">实际发生但未触发预警的事件比例</div>
       </div>
-      <div class="kpi-card">
+
+      <div class="kpi-card" title="【评价标准】精准性指标。5.6%属可接受范围。若过高会导致现场人员产生“狼来了”的麻痹心理。建议持续优化算法或多源数据融合以剔除环境干扰。">
         <div class="kpi-header">误报率</div>
         <div class="kpi-value warning-text">{{ kpiData.falseRate }}%</div>
         <div class="kpi-desc">预警触发但未形成有效险情的比例</div>
       </div>
+
       <div class="kpi-card">
         <div class="kpi-header">成功率</div>
         <div class="kpi-value success-text">{{ kpiData.successRate }}%</div>
         <div class="kpi-desc">预警触发且现场有对应的宏观现象</div>
       </div>
-      <div class="kpi-card">
+
+      <div class="kpi-card" title="【评价标准】管理效能与执行力指标。3.2h在大型矿山中表现良好。若想进一步压缩时长，可结合左侧“闭环处置效率”列表，对标记为“可优化”的环节进行定向提效。">
         <div class="kpi-header">平均闭环处置时间</div>
         <div class="kpi-value info-text">{{ kpiData.avgCloseTime }} <span class="unit">h</span></div>
         <div class="kpi-desc">预警发出到隐患关闭的平均时长</div>
