@@ -132,12 +132,11 @@
           <table class="dash-table">
             <thead>
               <tr>
-                <th width="60" style="text-align: center; vertical-align: middle;">序号</th>
-                <th style="text-align: center; vertical-align: middle;">区域</th>
-                <th style="text-align: center; vertical-align: middle;">设备编号</th>
-                <th style="text-align: center; vertical-align: middle;">标高</th>
-                <th style="text-align: center; vertical-align: middle;">离线时间</th>
-                <th style="text-align: center; vertical-align: middle;">所属厂商</th>
+<th width="60" style="text-align: center; vertical-align: middle;">序号</th>
+<th style="text-align: center; vertical-align: middle;">区域</th>
+<th style="text-align: center; vertical-align: middle;">设备编号</th>
+<th style="text-align: center; vertical-align: middle;">离线时间</th>
+<th style="text-align: center; vertical-align: middle;">所属厂商</th>
               </tr>
             </thead>
             <tbody id="offline-table-body"></tbody>
@@ -357,14 +356,17 @@ const mapModule = {
         else if (isOnline && type === 'STRESS') { dashModule.focusWithRange(p.id); getYingliAnalysisModule().open(this.pMeta[p.id]); }
         else if (isOnline && type === 'VIB') { dashModule.focusWithRange(p.id); getVibAnalysisModule().open(this.pMeta[p.id]); }
       };
-      p.onmouseenter = (e) => {
+// 只有在线设备才绑定悬浮标签
+if (isOnline) {
+    p.onmouseenter = (e) => {
         const tt = document.getElementById('map-tooltip');
         tt.style.display = 'block';
         tt.innerHTML = `<b style="color:#85C6F1;">[${regDef.name}] ${deviceId}</b><hr style='margin:5px 0; opacity:0.2'>${this.getTechData(type, p.id)}`;
         tt.style.left = e.clientX + 15 + 'px';
         tt.style.top = e.clientY + 15 + 'px';
-      };
-      p.onmouseleave = () => document.getElementById('map-tooltip').style.display = 'none';
+    };
+    p.onmouseleave = () => document.getElementById('map-tooltip').style.display = 'none';
+}
       cv.appendChild(p);
     }
     this.radarList = [];
@@ -381,7 +383,7 @@ const mapModule = {
     });
   },
 
-  getTechData(type, id) {
+getTechData(type, id) {
     const meta = this.pMeta[id];
     const multiplier = this.isDetailMode ? 1 : (this.tMultiplier || 1);
     const seed = parseInt(id.replace('pt-', '')) || 0;
@@ -405,8 +407,14 @@ const mapModule = {
       'STRESS': `应力/压力: ${(2.5 + speed * 0.15).toFixed(2)} kPa<br>类型: ${meta.subType || '—'}`,
       'VIB': `振动速度峰值: ${speed.toFixed(2)} cm/s<br>主频: ${(10 + (seed % 5)).toFixed(1)} Hz`
     };
-    return specs[type] || `设备状态: 运行正常<br>当前速度: ${speed.toFixed(2)} mm/h`;
-  },
+const content = specs[type] || `设备状态: 运行正常<br>当前速度: ${speed.toFixed(2)} mm/h`;
+// 裂缝写实（SURFACE）不显示图片占位符
+if (type !== 'SURFACE') {
+    const placeholder = `<div style="width:100%; height:80px; background:#e0e0e0; border-radius:4px; margin-bottom:8px; display:flex; align-items:center; justify-content:center; color:#666; font-size:12px;">📷 现场抓拍</div>`;
+    return placeholder + content;
+}
+return content;
+},
 
   setTime(days, btn) {
     document.querySelectorAll('#time-engine-bar .freq-btn').forEach(b => b.classList.remove('active'));
@@ -1029,6 +1037,7 @@ const profileModule = {
 // ================= 仪表盘模块（离线弹窗及聚焦） =================
 const dashModule = {
   offlineData: [],
+  _offlineModalKeepMapState: false,
   offlineCurrentPage: 1,
   offlinePageSize: 5,
   currentPage: 1,
@@ -1260,9 +1269,9 @@ getWarningTableData() {
         },
       ],
     });
-    chart.on('click', (params) => {
-      if (params.name === '离线') this.showOfflineModal(scopeMetas.filter((n) => !n.isOnline));
-    });
+chart.on('click', (params) => {
+  if (params.name === '离线') this.showOfflineModal(scopeMetas.filter((n) => !n.isOnline), true); // 传入 true，表示不修改地图状态
+});
   },
 
   initAlarmChart() {
@@ -1454,35 +1463,53 @@ getWarningTableData() {
     cv.style.transform = `translate(${mapModule.pos.x}px, ${mapModule.pos.y}px) scale(${mapModule.scale})`;
   },
 
-  showOfflineModal(data) {
+showOfflineModal(data, keepMapState = false) {
     const modal = document.getElementById('offline-modal');
     const mapSection = document.getElementById('main-map-section');
-    this._offlineModalSnapshot = {
-      activeTypes: Array.from(mapFilterModule.activeTypes),
-      selectedRegions: [...mapFilterModule.selectedRegions],
-      selectedPoints: [...mapFilterModule.selectedPoints],
-    };
+
+    // 标记本次弹窗是否保持地图状态
+    this._offlineModalKeepMapState = keepMapState;
+
+    if (!keepMapState) {
+        // 只有需要修改地图状态时才保存快照
+        this._offlineModalSnapshot = {
+            activeTypes: Array.from(mapFilterModule.activeTypes),
+            selectedRegions: [...mapFilterModule.selectedRegions],
+            selectedPoints: [...mapFilterModule.selectedPoints],
+        };
+    } else {
+        this._offlineModalSnapshot = null;
+    }
+
     this.offlineData = data;
     this.offlineCurrentPage = 1;
     mapSection.appendChild(modal);
     modal.style.display = 'flex';
-    const offlineIds = data.map((n) => n.id).filter(Boolean);
-    const offlineRegions = [...new Set(data.map((n) => n.region))];
-    mapFilterModule.selectedPoints = offlineIds;
-    mapFilterModule.selectedRegions = offlineRegions.length ? offlineRegions : [];
-    mapFilterModule.syncUI();
-    const regBtn = document.getElementById('map-region-btn');
-    const pointInp = document.getElementById('map-point-input');
-    [regBtn, pointInp].forEach((el) => {
-      if (el) {
-        el.disabled = true;
-        el.style.opacity = '0.5';
-        el.style.cursor = 'not-allowed';
-      }
-    });
-    document.querySelectorAll('.freq-btn').forEach((btn) => btn.classList.remove('active'));
+
+    if (!keepMapState) {
+        // 修改地图筛选（原有逻辑）
+        const offlineIds = data.map((n) => n.id).filter(Boolean);
+        const offlineRegions = [...new Set(data.map((n) => n.region))];
+        mapFilterModule.selectedPoints = offlineIds;
+        mapFilterModule.selectedRegions = offlineRegions.length ? offlineRegions : [];
+        mapFilterModule.syncUI();
+        const regBtn = document.getElementById('map-region-btn');
+        const pointInp = document.getElementById('map-point-input');
+        [regBtn, pointInp].forEach((el) => {
+            if (el) {
+                el.disabled = true;
+                el.style.opacity = '0.5';
+                el.style.cursor = 'not-allowed';
+            }
+        });
+        document.querySelectorAll('.freq-btn').forEach((btn) => btn.classList.remove('active'));
+    } else {
+        // 保持地图状态，只显示弹窗，不做任何地图修改
+        // 但需要确保弹窗不会与现有地图交互冲突（如遮罩层等）
+    }
+
     this.renderOfflineTable();
-  },
+},
 
   renderOfflineTable() {
     const total = this.offlineData.length;
@@ -1499,12 +1526,11 @@ getWarningTableData() {
         const offlineTime = `2026-01-20 ${hour}:${minute}`;
         const vendor = vendors[seed % vendors.length];
         return `<tr>
-          <td style="text-align: center; vertical-align: middle;"><span style="color:#999; font-family: monospace;">#${(start + i + 1).toString().padStart(2, '0')}</span></td>
-          <td style="text-align: center; vertical-align: middle;"><b style="color:#333">${n.region}</b></td>
-          <td style="text-align: center; vertical-align: middle;"><span class="status-tag-offline">${n.deviceId}</span></td>
-          <td style="text-align: center; vertical-align: middle; font-weight:bold; color:#1c3d90">${elevation}</td>
-          <td style="text-align: center; vertical-align: middle; color:#666; font-size:13px;">${offlineTime}</td>
-          <td style="text-align: center; vertical-align: middle;"><span class="vendor-tag">${vendor}</span></td>
+<td style="text-align: center; vertical-align: middle;"><span style="color:#999; font-family: monospace;">#${(start + i + 1).toString().padStart(2, '0')}</span></td>
+<td style="text-align: center; vertical-align: middle;"><b style="color:#333">${n.region}</b></td>
+<td style="text-align: center; vertical-align: middle;"><span class="status-tag-offline">${n.deviceId}</span></td>
+<td style="text-align: center; vertical-align: middle; color:#666; font-size:13px;">${offlineTime}</td>
+<td style="text-align: center; vertical-align: middle;"><span class="vendor-tag">${vendor}</span></td>
         </tr>`;
       })
       .join('');
@@ -1528,39 +1554,50 @@ getWarningTableData() {
     this.renderOfflineTable();
   },
 
-  closeOfflineModal() {
+closeOfflineModal() {
     document.getElementById('offline-modal').style.display = 'none';
+
+    const keepMapState = this._offlineModalKeepMapState;
     const snap = this._offlineModalSnapshot;
     const hadSnap = !!snap;
-    if (snap) {
-      mapFilterModule.activeTypes.clear();
-      snap.activeTypes.forEach((t) => mapFilterModule.activeTypes.add(t));
-      mapFilterModule.selectedRegions = [...snap.selectedRegions];
-      mapFilterModule.selectedPoints = [...snap.selectedPoints];
-      this._offlineModalSnapshot = null;
+
+    if (!keepMapState) {
+        // 原有恢复逻辑（需要修改地图状态）
+        if (snap) {
+            mapFilterModule.activeTypes.clear();
+            snap.activeTypes.forEach((t) => mapFilterModule.activeTypes.add(t));
+            mapFilterModule.selectedRegions = [...snap.selectedRegions];
+            mapFilterModule.selectedPoints = [...snap.selectedPoints];
+            this._offlineModalSnapshot = null;
+        } else {
+            mapFilterModule.selectedRegions = ['全部', '北帮', '南帮', '东帮', '西帮', '中央区'];
+            const allGnssIds = Object.keys(mapModule.pMeta).filter((id) => mapModule.pMeta[id].type === 'GNSS');
+            mapFilterModule.selectedPoints = [...allGnssIds];
+            mapFilterModule.activeTypes.clear();
+            mapFilterModule.activeTypes.add('GNSS');
+        }
+
+        const regBtn = document.getElementById('map-region-btn');
+        const pointInp = document.getElementById('map-point-input');
+        [regBtn, pointInp].forEach((el) => {
+            if (el) {
+                el.disabled = false;
+                el.style.opacity = '1';
+                el.style.cursor = 'pointer';
+            }
+        });
+        const defaultBtn = document.querySelector('.freq-btn');
+        if (defaultBtn) mapModule.setTime(1, defaultBtn);
+        mapModule.isDetailMode = false;
+        mapFilterModule.syncUI();
+        if (hadSnap) mapModule.fitVisibleFilteredPoints();
+        else mapModule.focus('GNSS');
     } else {
-      mapFilterModule.selectedRegions = ['全部', '北帮', '南帮', '东帮', '西帮', '中央区'];
-      const allGnssIds = Object.keys(mapModule.pMeta).filter((id) => mapModule.pMeta[id].type === 'GNSS');
-      mapFilterModule.selectedPoints = [...allGnssIds];
-      mapFilterModule.activeTypes.clear();
-      mapFilterModule.activeTypes.add('GNSS');
+        // 保持地图状态，关闭弹窗后什么都不做，只重置标记
+        this._offlineModalKeepMapState = false;
+        // 确保地图的筛选按钮等保持原样（不做任何恢复）
     }
-    const regBtn = document.getElementById('map-region-btn');
-    const pointInp = document.getElementById('map-point-input');
-    [regBtn, pointInp].forEach((el) => {
-      if (el) {
-        el.disabled = false;
-        el.style.opacity = '1';
-        el.style.cursor = 'pointer';
-      }
-    });
-    const defaultBtn = document.querySelector('.freq-btn');
-    if (defaultBtn) mapModule.setTime(1, defaultBtn);
-    mapModule.isDetailMode = false;
-    mapFilterModule.syncUI();
-    if (hadSnap) mapModule.fitVisibleFilteredPoints();
-    else mapModule.focus('GNSS');
-  },
+},
 };
 
 // ================= 应用逻辑（重置GNSS筛选） =================
@@ -3971,5 +4008,9 @@ input[type="datetime-local"].map-btn {
   100% {
     box-shadow: 0 0 0 0 rgba(28, 61, 144, 0.4);
   }
+}
+
+.model-tooltip {
+    min-width: 200px;
 }
 </style>
