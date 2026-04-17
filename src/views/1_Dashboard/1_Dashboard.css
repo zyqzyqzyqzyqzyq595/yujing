@@ -1086,10 +1086,11 @@
     overflow: visible !important; /* 核心修复：防止截断下拉框 */
 }
 
+/* 去除之前强制不压缩的设定，允许为了保持一行而自适应微调宽度 */
 .threshold-modal-body #auto-single-controls > div {
-    flex-shrink: 0;            /* 防止子项被压缩 */
+    flex-shrink: 1 !important;
+    min-width: 105px !important;
 }
-
 .threshold-modal-body #auto-region-selector,
 .threshold-modal-body #auto-line-selector {
     width: 115px;   /* 宽度变短 */

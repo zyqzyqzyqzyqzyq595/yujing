@@ -42,7 +42,15 @@ window.thresholdModule = {
         selectedDeviceType: '',
         selectedPoint: '',
         multiMetrics: { level1: '表面加速度', level2: '表面加速度', level3: '表面速度', level4: '表面速度' },
-        waterSubType: '水位计'
+        waterSubType: '水位计',
+        // GNSS 阈值模式新增
+        gnssThresholdMode: 'actual',   // 'actual' 或 'standard'
+        standardThresholdRatios: {      // 标准阈值各等级超出百分比（相对于平均位移）
+            red: 100,   // 一级预警 100%
+            orange: 80, // 二级预警 80%
+            yellow: 60, // 三级预警 60%
+            blue: 20    // 四级预警 20%
+        }
     },
 
     // ================= 原有设备列表获取（阈值预警使用） =================
@@ -64,6 +72,32 @@ window.thresholdModule = {
         return Object.values(window.mapModule.pMeta)
             .filter(meta => meta.type === targetType && meta.isOnline)
             .map(meta => meta.deviceId);
+    },
+
+    // 获取所有在线 GNSS 监测点的位移平均值（用于标准阈值模式）
+    getAverageGnssDisplacement: () => {
+        if (!window.mapModule || !window.mapModule.pMeta) return 0;
+        const gnssPoints = Object.values(window.mapModule.pMeta).filter(meta => meta.type === 'GNSS' && meta.isOnline);
+        if (gnssPoints.length === 0) return 0;
+        let totalDisp = 0;
+        gnssPoints.forEach(meta => {
+            // 模拟获取位移量（实际应从数据中获取，此处用随机数模拟，实际应替换为真实数据）
+            const seed = parseInt(meta.id.replace('pt-', '')) || 0;
+            const variance = (seed % 10) * 0.1;
+            let speed = 0.5;
+            switch (meta.alarmIdx) {
+                case 0: speed = 8.1 + variance * 3.5; break;
+                case 1: speed = 5.1 + variance * 2.5; break;
+                case 2: speed = 4.1 + variance * 0.8; break;
+                case 3: speed = 3.1 + variance * 0.8; break;
+                default: speed = 0.5 + (seed % 5) * 0.4;
+            }
+            // 假设一天内的位移量（mm）
+            const multiplier = window.mapModule.tMultiplier || 1;
+            const dailyDisp = speed * 24 * multiplier;
+            totalDisp += dailyDisp;
+        });
+        return totalDisp / gnssPoints.length;
     },
 
     // ================= 参数配置（完整保留） =================
@@ -473,6 +507,11 @@ window.thresholdModule = {
         window.thresholdModule.state.selectedLine = '';
         window.thresholdModule.state.selectedDeviceType = '';
         window.thresholdModule.state.selectedPoint = '';
+        // 重置 GNSS 阈值模式为实际阈值
+        window.thresholdModule.state.gnssThresholdMode = 'actual';
+        window.thresholdModule.state.standardThresholdRatios = {
+            red: 100, orange: 80, yellow: 60, blue: 20
+        };
 
         const modal = document.getElementById('threshold-analysis-modal');
         if (modal) {
@@ -708,19 +747,36 @@ setTimeout(() => {
             return;
         }
 
-        // ================= 阈值预警模式 =================
+// ================= 阈值预警模式 =================
         const tab = window.thresholdModule.state.activeTab;
         let selectHtml = '';
         let extraControlsHtml = '';
 
         if (tab === 'GNSS') {
+            const mode = window.thresholdModule.state.gnssThresholdMode;
+
+            // 修复点1：将“阈值模式”独立分配给 extraControlsHtml，使其融入顶层的水平 flex 布局
+            extraControlsHtml = `
+                <div class="flex-align-center gap-8">
+                    <span class="form-label">阈值模式:</span>
+                    <select class="breathing-select" style="width: 110px;" onchange="window.thresholdModule.setGnssThresholdMode(this.value)">
+                        <option value="actual" ${mode === 'actual' ? 'selected' : ''}>实际阈值</option>
+                        <option value="standard" ${mode === 'standard' ? 'selected' : ''}>标准阈值</option>
+                    </select>
+                </div>
+            `;
+
+            // 修复点2：这里只保留“预警参数类型”下拉框本身，不要外层多余的 div
             selectHtml = `<select class="breathing-select" style="width: 120px;" onchange="window.thresholdModule.state.paramType=this.value; window.thresholdModule.renderCards()">
                             <option value="位移量" ${window.thresholdModule.state.paramType === '位移量' ? 'selected' : ''}>位移量</option>
                             <option value="位移速度" ${window.thresholdModule.state.paramType === '位移速度' ? 'selected' : ''}>位移速度</option>
                             <option value="位移加速度" ${window.thresholdModule.state.paramType === '位移加速度' ? 'selected' : ''}>位移加速度</option>
                           </select>`;
-            infoText.innerHTML = `注：预警参数可设置为 <b>位移量</b>、<b>位移速度</b> 或 <b>位移加速度</b> 中的某一个。`;
-        } else if (tab === '雷达监测') {
+
+            infoText.innerHTML = mode === 'actual'
+                ? `注：实际阈值模式可分别设置 <b>位移量</b>、<b>位移速度</b> 或 <b>位移加速度</b> 的预警阈值。`
+                : `注：标准阈值模式基于全部GNSS监测点的平均位移值，按超出百分比自动计算各等级阈值。`;
+                        } else if (tab === '雷达监测') {
             selectHtml = `<select class="breathing-select" style="width: 120px;" onchange="window.thresholdModule.state.paramType=this.value; window.thresholdModule.renderCards()">
                             <option value="平均位移" ${window.thresholdModule.state.paramType === '平均位移' ? 'selected' : ''}>平均位移</option>
                             <option value="平均速度" ${window.thresholdModule.state.paramType === '平均速度' ? 'selected' : ''}>平均速度</option>
@@ -780,22 +836,28 @@ setTimeout(() => {
             infoText.innerHTML = `注：预警参数可选<b>速度(mm/h)</b>、<b>位移(mm)</b>、<b>累积位移(mm)</b>、<b>加速度(mm/h²)</b>或<b>切线角(°)</b>，右侧将为各等级分别设置对应分量的阈值。`;
         }
 
-        const radarAreaHtml = (tab === '雷达监测') ? `
+const radarAreaHtml = (tab === '雷达监测') ? `
             <div id="radar-area-box" class="flex-align-center gap-8" style="display:flex; margin-left: 8px;">
                 <span class="form-label">预警评估范围:</span>
                 <div class="input-with-unit"><input type="number" value="50" class="breathing-input-left" id="radar-eval-area" style="width:60px;"><span class="unit-addon">m²</span></div>
             </div>
         ` : `<div id="radar-area-box" style="display:none;"></div>`;
 
-        // 注意：将 radarAreaHtml 置于 sub-target-container 之后，实现与目标下拉框紧邻，并随多选框展示推移的效果
+// 🌟 新增：判断是否为 GNSS 标准阈值模式，若是则隐藏对应组件
+        const isStandardMode = (tab === 'GNSS' && window.thresholdModule.state.gnssThresholdMode === 'standard');
+        const hideParamsStyle = isStandardMode ? 'display: none !important;' : 'display: flex;';
+
+        // 修复点3：增加 flex-wrap: nowrap; white-space: nowrap; 强制所有组件在一行内显示
         const leftGroupHtml = `
-            <div class="flex-align-center gap-20">
+            <div class="flex-align-center gap-20" style="flex-wrap: nowrap; white-space: nowrap;">
                 ${extraControlsHtml ? `<div class="flex-align-center gap-8">${extraControlsHtml}</div>` : ''}
-                <div class="flex-align-center gap-10">
+                <!-- 🌟 附加隐藏样式 hideParamsStyle -->
+                <div class="flex-align-center gap-10" id="gnss-param-row" style="${hideParamsStyle}">
                     <span class="form-label">预警参数类型:</span>
-                    <div id="param-select-container">${selectHtml}</div>
+                    <div id="param-select-container" style="display: flex;">${selectHtml}</div>
                 </div>
-                <div class="flex-align-center gap-8">
+                <!-- 🌟 附加隐藏样式 hideParamsStyle -->
+                <div class="flex-align-center gap-8" style="${hideParamsStyle}">
                     <span class="form-label" style="font-size: 13px;">设置目标:</span>
                     <select class="breathing-select" style="width: 85px;" onchange="window.thresholdModule.updateTarget(this.value, true)">
                         <option value="global" ${window.thresholdModule.state.targetLevel === 'global' ? 'selected' : ''}>全局</option>
@@ -809,17 +871,35 @@ setTimeout(() => {
             </div>
         `;
 
+        // 修复点4：同样取消换行，并将按钮设置 flex-shrink: 0 避免被挤压缩小
         headerContainer.innerHTML = `
             <div class="flex-between" style="width: 100%;">
-                <div class="flex-align-center gap-20" style="flex-wrap: wrap;">
+                <div class="flex-align-center gap-20" style="flex-wrap: nowrap; overflow-x: visible;">
                     ${leftGroupHtml}
                 </div>
-                <button class="primary-btn" onclick="window.thresholdModule.save()">保存参数</button>
+                <button class="primary-btn" style="flex-shrink: 0;" onclick="window.thresholdModule.save()">保存参数</button>
             </div>
         `;
         document.getElementById('info-tip-box').style.display = 'flex';
         // 初次加载时不强制清空
         window.thresholdModule.updateTarget(window.thresholdModule.state.targetLevel, false);
+        },
+
+// 新增：切换 GNSS 阈值模式
+    setGnssThresholdMode: (mode) => {
+        window.thresholdModule.state.gnssThresholdMode = mode;
+        // 关键：重新渲染控制栏，触发隐藏逻辑
+        window.thresholdModule.renderControls();
+        window.thresholdModule.renderCards();
+    },
+
+    // 更新标准阈值百分比
+    updateStandardRatio: (level, value) => {
+        const ratio = parseFloat(value);
+        if (!isNaN(ratio) && ratio >= 0) {
+            window.thresholdModule.state.standardThresholdRatios[level] = ratio;
+            window.thresholdModule.renderCards(); // 重新渲染以更新显示的阈值
+        }
     },
 
     updateWaterSubType: (subType) => {
@@ -911,17 +991,46 @@ setTimeout(() => {
         if (isOriginalFour) {
             let cardsHtml = '';
             if (tab === 'GNSS') {
-                const prefix = pType === '位移量' ? '位移' : (pType === '位移速度' ? '速度' : '加速度');
-                const unit = pType === '位移量' ? 'mm' : (pType === '位移速度' ? 'mm/d' : 'mm/d²');
-                cardsHtml = levels.map(l => `
-                    <div class="threshold-card border-${l.id}">
-                        <div class="card-title text-${l.id}"><div><span class="color-dot bg-${l.id}"></span> ${l.name} (${l.label})</div><span class="sub-cond">连续2次</span></div>
-                        <div class="card-body">
-                            <div class="input-row"><input type="checkbox" checked class="breathing-check"><label>Z${prefix} ></label><input type="number" value="${l.val}" class="breathing-num"><span class="unit">${unit}</span></div>
-                            <div class="input-row"><input type="checkbox" class="breathing-check"><label>Y${prefix} ></label><input type="number" value="${l.val}" class="breathing-num"><span class="unit">${unit}</span></div>
-                            <div class="input-row"><input type="checkbox" class="breathing-check"><label>X${prefix} ></label><input type="number" value="${l.val}" class="breathing-num"><span class="unit">${unit}</span></div>
+                const mode = window.thresholdModule.state.gnssThresholdMode;
+                if (mode === 'actual') {
+                    // 原有实际阈值模式
+                    const prefix = pType === '位移量' ? '位移' : (pType === '位移速度' ? '速度' : '加速度');
+                    const unit = pType === '位移量' ? 'mm' : (pType === '位移速度' ? 'mm/d' : 'mm/d²');
+                    cardsHtml = levels.map(l => `
+                        <div class="threshold-card border-${l.id}">
+                            <div class="card-title text-${l.id}"><div><span class="color-dot bg-${l.id}"></span> ${l.name} (${l.label})</div><span class="sub-cond">连续2次</span></div>
+                            <div class="card-body">
+                                <div class="input-row"><input type="checkbox" checked class="breathing-check"><label>Z${prefix} ></label><input type="number" value="${l.val}" class="breathing-num"><span class="unit">${unit}</span></div>
+                                <div class="input-row"><input type="checkbox" class="breathing-check"><label>Y${prefix} ></label><input type="number" value="${l.val}" class="breathing-num"><span class="unit">${unit}</span></div>
+                                <div class="input-row"><input type="checkbox" class="breathing-check"><label>X${prefix} ></label><input type="number" value="${l.val}" class="breathing-num"><span class="unit">${unit}</span></div>
+                            </div>
+                        </div>`).join('');
+                } else {
+                    // 标准阈值模式：显示平均位移和按比例计算的阈值
+                    const avgDisp = window.thresholdModule.getAverageGnssDisplacement();
+                    const ratios = window.thresholdModule.state.standardThresholdRatios;
+                    const calcThreshold = (ratio) => (avgDisp * ratio / 100).toFixed(2);
+                    cardsHtml = `
+                        <div class="threshold-info" style="grid-column: span 4; background:#f0f7ff; border-radius:12px; padding:12px 16px; margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap;">
+                            <span><strong>当前全部GNSS监测点平均位移：</strong> ${avgDisp.toFixed(2)} mm</span>
                         </div>
-                    </div>`).join('');
+                    `;
+                    cardsHtml += levels.map(l => {
+                        let levelKey = l.id;
+                        let ratio = ratios[levelKey];
+                        let thresholdVal = calcThreshold(ratio);
+                        let unit = 'mm';
+                        return `
+                            <div class="threshold-card border-${l.id}">
+                                <div class="card-title text-${l.id}"><div><span class="color-dot bg-${l.id}"></span> ${l.name} (${l.label})</div></div>
+                                <div class="card-body">
+                                    <div class="input-row"><span style="width:100px;">超出百分比:</span><input type="number" value="${ratio}" class="breathing-num" style="width:70px;" onchange="window.thresholdModule.updateStandardRatio('${levelKey}', this.value)"><span class="unit">%</span></div>
+                                    <div class="input-row"><span style="width:100px;">阈值 ></span><input type="number" value="${thresholdVal}" class="breathing-num" style="width:70px;" readonly><span class="unit">${unit}</span></div>
+<div class="input-row" style="justify-content: center; margin-top: 0.5em;"><span>（自动计算）</span></div>                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
             } else if (tab === '雷达监测') {
                 const unit = pType === '平均位移' ? 'mm' : (pType === '平均速度' ? 'mm/d' : 'mm/d²');
                 cardsHtml = levels.map(l => `

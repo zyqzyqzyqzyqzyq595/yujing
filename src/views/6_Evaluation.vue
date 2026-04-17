@@ -1,11 +1,4 @@
-没问题！针对您的两个具体需求，我做了以下精准改进：
 
-1. **新增表头**：在左下角“闭环处置效率”列表中，增加了“环节”、“平均时长”、“状态”这三个表头，并且严格对齐了下方的数据列。
-2. **成功率数据联动**：将右下角的标题明确标注为“(各区域成功率)”，同时**在底层逻辑中将这几个区域的成功率平均值直接与中部 KPI 卡片的“成功率”绑定**。现在无论是初始加载还是您切换时间范围，系统都会先计算区域成功率，然后算出准确的平均成功率赋予 KPI，确保数据完全对应、符合逻辑。
-
-没有修改任何其他功能和布局结构，依旧保持严格单屏无滚动条。以下是最终的完整代码：
-
-```vue
 <template>
   <div class="view-page">
     <div class="header-row">
@@ -42,14 +35,35 @@
     </div>
 
     <div class="kpi-container">
-      <div class="kpi-card" title="【数据来源】系统无法自动感知漏报，由现场人工巡查或突发上报后，管理员事后手动补录。&#10;【评价标准】安全性底线（高压线），该指标应无限趋近于0%。若偏高需立即排查监测盲区或设备掉线情况。">
-        <div class="kpi-header">漏报率</div>
+      <div class="kpi-card">
+        <div class="kpi-top">
+          <div
+              class="kpi-header"
+              title="【数据来源】由现场人工巡查或突发上报后，管理员事后手动补录。&#10;【评价标准】安全性底线（高压线），该指标应无限趋近于0%。若偏高需立即排查监测盲区或设备掉线情况。"
+          >
+            漏报率
+          </div>
+          <div class="kpi-actions">
+            <button class="mini-action-btn" type="button" @click="openMissEventDialog">事件录入</button>
+            <button class="mini-action-btn" type="button" @click="downloadMissEvents">事件下载</button>
+          </div>
+        </div>
         <div class="kpi-value warning-text">{{ kpiData.missRate }}%</div>
         <div class="kpi-desc">实际发生但未触发预警的事件比例</div>
       </div>
 
-      <div class="kpi-card" title="【评价标准】精准性指标。5.6%属可接受范围。若过高会导致现场人员产生“狼来了”的麻痹心理。建议持续优化算法或多源数据融合以剔除环境干扰。">
-        <div class="kpi-header">误报率</div>
+      <div class="kpi-card">
+        <div class="kpi-top">
+          <div
+              class="kpi-header"
+              title="【评价标准】精准性指标。5.6%属可接受范围。若过高会导致现场人员产生‘狼来了’的麻痹心理。建议持续优化算法或多源数据融合以剔除环境干扰。"
+          >
+            误报率
+          </div>
+          <div class="kpi-actions">
+            <button class="mini-action-btn" type="button" @click="downloadFalseEvents">事件下载</button>
+          </div>
+        </div>
         <div class="kpi-value warning-text">{{ kpiData.falseRate }}%</div>
         <div class="kpi-desc">预警触发但未形成有效险情的比例</div>
       </div>
@@ -127,6 +141,67 @@
       </div>
     </div>
   </div>
+  <div v-if="showMissEventDialog" class="dialog-mask" @click.self="closeMissEventDialog">
+    <div class="dialog-card">
+      <div class="dialog-header">
+        <span>漏报事件录入</span>
+        <button class="dialog-close" @click="closeMissEventDialog">×</button>
+      </div>
+
+      <div class="dialog-body">
+        <div class="form-grid">
+          <div class="form-item">
+            <label>时间</label>
+            <input type="datetime-local" v-model="missEventForm.time" class="form-input" />
+          </div>
+
+          <div class="form-item">
+            <label>区域</label>
+            <select v-model="missEventForm.region" class="form-input">
+              <option value="">请选择区域</option>
+              <option v-for="item in regionOptions" :key="item" :value="item">{{ item }}</option>
+            </select>
+          </div>
+
+          <div class="form-item full-width">
+            <label>位置</label>
+            <input
+                type="text"
+                v-model="missEventForm.position"
+                class="form-input"
+                placeholder="如：+862水平，靠近岩破附近"
+            />
+          </div>
+
+          <div class="form-item">
+            <label>录入人</label>
+            <input type="text" v-model="missEventForm.recorder" class="form-input" placeholder="请输入录入人" />
+          </div>
+
+          <div class="form-item full-width">
+            <label>事件描述</label>
+            <textarea
+                v-model="missEventForm.description"
+                class="form-textarea"
+                rows="4"
+                placeholder="请输入事件描述"
+            ></textarea>
+          </div>
+
+          <div class="form-item full-width">
+            <label>现场照片</label>
+            <input type="file" accept="image/*" @change="handleMissPhotoChange" class="form-input" />
+            <div v-if="missEventForm.photoName" class="file-name">已选择：{{ missEventForm.photoName }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dialog-footer">
+        <button class="footer-btn default-btn" @click="closeMissEventDialog">取消</button>
+        <button class="footer-btn primary-btn" @click="submitMissEvent">保存录入</button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup>
@@ -158,12 +233,38 @@ const regionSuccessRates = ref([
 
 // KPI 数据源 (成功率与多维度评估分析数据初始对齐)
 const kpiData = ref({
-  missRate: 2.8,
+  totalAlerts: 128,
+  handledAlerts: 121,
+  avgResponseTime: 18,
   falseRate: 5.6,
+  missRate: 2.1,
+  closedLoopRate: 94.5,
   successRate: 87.3,
   avgCloseTime: 3.2
 });
+const missEventList = ref([
+  {
+    time: '2026-04-15 08:30',
+    region: '南帮',
+    position: '+862水平，靠近岩破附近',
+    recorder: '张三',
+    description: '现场巡查发现有明显裂隙扩展，但系统未触发预警。',
+    photoName: '现场照片1.jpg'
+  }
+]);
+const actualEventTotal = ref(20);
+const updateMissRate = () => {
+  const total = Number(actualEventTotal.value) || 0;
+  const missCount = missEventList.value.length;
 
+  if (total <= 0) {
+    kpiData.value.missRate = 0;
+    return;
+  }
+
+  const rate = (missCount / total) * 100;
+  kpiData.value.missRate = Number(rate.toFixed(1));
+};
 // 左下角：各环节闭环时间模拟数据库
 const allDisposalData = {
   '1': [
@@ -192,6 +293,150 @@ const allDisposalData = {
   ]
 };
 const currentDisposalData = ref(allDisposalData['1']);
+const regionOptions = ['北帮', '东帮', '南帮', '西帮', '中央区域', '北排土场'];
+
+const showMissEventDialog = ref(false);
+
+function createEmptyMissEvent() {
+  return {
+    time: '',
+    region: '',
+    position: '',
+    recorder: '',
+    description: '',
+    photoName: '',
+    photoFile: null
+  };
+}
+
+const missEventForm = ref(createEmptyMissEvent());
+
+
+
+const falseEventList = ref([
+  {
+    time: '2026-04-12 10:20',
+    region: '东帮',
+    position: '+850平台西侧',
+    recorder: '李四',
+    description: '系统触发预警，现场复核后未发现异常，判定为误报。',
+    photoName: '误报复核1.jpg'
+  },
+  {
+    time: '2026-04-14 14:05',
+    region: '北排土场',
+    position: '排土场北侧边坡',
+    recorder: '王五',
+    description: '监测波动引发预警，现场核查无险情。',
+    photoName: '误报复核2.jpg'
+  }
+]);
+const openMissEventDialog = () => {
+  missEventForm.value = createEmptyMissEvent();
+  showMissEventDialog.value = true;
+};
+
+const closeMissEventDialog = () => {
+  showMissEventDialog.value = false;
+};
+const handleMissPhotoChange = (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  missEventForm.value.photoFile = file;
+  missEventForm.value.photoName = file.name;
+};
+const submitMissEvent = () => {
+  const { time, region, position, recorder, description, photoName } = missEventForm.value;
+
+  if (!time || !region || !position || !recorder || !description) {
+    window.alert('请先把时间、区域、位置、录入人、事件描述填写完整');
+    return;
+  }
+
+  missEventList.value.unshift({
+    time: formatDateTime(time),
+    region,
+    position,
+    recorder,
+    description,
+    photoName: photoName || '未上传'
+  });
+
+  updateMissRate();
+
+  closeMissEventDialog();
+  window.alert('漏报事件录入成功，漏报率已自动更新');
+};
+const formatDateTime = (value) => {
+  if (!value) return '';
+  return value.replace('T', ' ');
+};
+const downloadMissEvents = () => {
+  exportEventsToExcel('漏报事件台账', missEventList.value);
+};
+
+const downloadFalseEvents = () => {
+  exportEventsToExcel('误报事件台账', falseEventList.value);
+};
+const exportEventsToExcel = (sheetName, rows) => {
+  const headers = ['时间', '区域', '位置', '录入人', '事件描述', '现场照片'];
+
+  const htmlRows = rows.map(item => `
+    <tr>
+      <td>${escapeHtml(item.time || '')}</td>
+      <td>${escapeHtml(item.region || '')}</td>
+      <td>${escapeHtml(item.position || '')}</td>
+      <td>${escapeHtml(item.recorder || '')}</td>
+      <td>${escapeHtml(item.description || '')}</td>
+      <td>${escapeHtml(item.photoName || '')}</td>
+    </tr>
+  `).join('');
+
+  const html = `
+    <html xmlns:o="urn:schemas-microsoft-com:office:office"
+          xmlns:x="urn:schemas-microsoft-com:office:excel"
+          xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="UTF-8" />
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>${sheetName}</x:Name>
+                <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+      </head>
+      <body>
+        <table border="1">
+          <tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>
+          ${htmlRows}
+        </table>
+      </body>
+    </html>
+  `;
+
+  const blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `${sheetName}.xls`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(link.href);
+};
+const escapeHtml = (value) => {
+  return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+};
 
 // 核心：生成饼图数据 (模拟)
 const generatePieData = (names) => {
@@ -245,24 +490,25 @@ const initAllCharts = () => {
 
 // 触发数据更新(时间筛选改变时)
 const fetchDashboardData = () => {
-  // 1. 模拟生成新的区域成功率
   const newRegionRates = [
     { region: '东帮', rate: Math.floor(75 + Math.random() * 20) },
     { region: '南帮', rate: Math.floor(75 + Math.random() * 20) },
     { region: '北排土场', rate: Math.floor(75 + Math.random() * 20) }
   ];
+
   regionSuccessRates.value = newRegionRates;
 
-  // 2. 根据各区域成功率，计算出对应的平均成功率
-  const avgSuccess = (newRegionRates.reduce((sum, item) => sum + item.rate, 0) / newRegionRates.length).toFixed(1);
+  const avgSuccess = Number(
+      (
+          newRegionRates.reduce((sum, item) => sum + item.rate, 0) / newRegionRates.length
+      ).toFixed(1)
+  );
 
-  // 3. 更新 KPI 数据（成功率保持对应）
-  kpiData.value = {
-    missRate: (Math.random() * 5).toFixed(1),
-    falseRate: (Math.random() * 10).toFixed(1),
-    successRate: avgSuccess,
-    avgCloseTime: (2 + Math.random() * 5).toFixed(1)
-  };
+  kpiData.value.falseRate = Number((Math.random() * 10).toFixed(1));
+  kpiData.value.successRate = avgSuccess;
+  kpiData.value.avgCloseTime = Number((2 + Math.random() * 5).toFixed(1));
+
+  updateMissRate();
 
   nextTick(() => {
     initAllCharts();
@@ -274,18 +520,18 @@ const updateDisposalData = () => {
   currentDisposalData.value = allDisposalData[selectedAlertLevel.value];
 };
 
-// 生命周期钩子
+const handleResize = () => {
+  chartInstances.forEach(chart => chart.resize());
+};
+
 onMounted(() => {
+  updateMissRate();
   initAllCharts();
-  window.addEventListener('resize', () => {
-    chartInstances.forEach(chart => chart.resize());
-  });
+  window.addEventListener('resize', handleResize);
 });
 
 onUnmounted(() => {
-  window.removeEventListener('resize', () => {
-    chartInstances.forEach(chart => chart.resize());
-  });
+  window.removeEventListener('resize', handleResize);
   chartInstances.forEach(chart => chart.dispose());
 });
 </script>
@@ -600,6 +846,146 @@ onUnmounted(() => {
   font-size: 12px;
   color: #666;
   line-height: 1.5;
+}
+.kpi-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.kpi-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mini-action-btn {
+  border: 1px solid #c7d6f5;
+  background: #f5f9ff;
+  color: #1c3d90;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  line-height: 18px;
+}
+
+.mini-action-btn:hover {
+  background: #e8f1ff;
+}
+.dialog-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+
+.dialog-card {
+  width: 720px;
+  max-width: calc(100vw - 40px);
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #ebeef5;
+  font-size: 16px;
+  font-weight: bold;
+  color: #1c3d90;
+}
+
+.dialog-close {
+  border: none;
+  background: transparent;
+  font-size: 24px;
+  color: #999;
+  cursor: pointer;
+}
+
+.dialog-body {
+  padding: 20px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.form-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-item label {
+  font-size: 13px;
+  color: #555;
+  font-weight: bold;
+}
+
+.full-width {
+  grid-column: 1 / -1;
+}
+
+.form-input,
+.form-textarea {
+  width: 100%;
+  border: 1px solid #dcdfe6;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 13px;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.form-input:focus,
+.form-textarea:focus {
+  border-color: #1c3d90;
+}
+
+.file-name {
+  font-size: 12px;
+  color: #666;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px 18px;
+  border-top: 1px solid #ebeef5;
+}
+
+.footer-btn {
+  min-width: 88px;
+  height: 34px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  border: 1px solid transparent;
+}
+
+.default-btn {
+  background: #fff;
+  border-color: #dcdfe6;
+  color: #666;
+}
+
+.primary-btn {
+  background: #1c3d90;
+  color: #fff;
 }
 </style>
 ```
