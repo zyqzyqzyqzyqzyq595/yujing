@@ -1102,12 +1102,13 @@ const radarAreaHtml = (tab === '雷达监测') ? `
         container.innerHTML = cardsHtml;
     },
 
-    renderSingleSourceCards: () => {
+renderSingleSourceCards: () => {
+        // 修改点：将数组顺序从 四、三、二、一 改为 一、二、三、四
         const levels =[
-            { id: 'blue', name: '四级预警', label: '蓝色', indicator: '表面速度', unit: 'mm/d', sig: '0.05' },
-            { id: 'yellow', name: '三级预警', label: '黄色', indicator: '表面速度', unit: 'mm/d', sig: '0.001' },
+            { id: 'red', name: '一级预警', label: '红色', indicator: '表面加速度', unit: 'mm/d²', sig: '0.001' },
             { id: 'orange', name: '二级预警', label: '橙色', indicator: '表面加速度', unit: 'mm/d²', sig: '0.05' },
-            { id: 'red', name: '一级预警', label: '红色', indicator: '表面加速度', unit: 'mm/d²', sig: '0.001' }
+            { id: 'yellow', name: '三级预警', label: '黄色', indicator: '表面速度', unit: 'mm/d', sig: '0.001' },
+            { id: 'blue', name: '四级预警', label: '蓝色', indicator: '表面速度', unit: 'mm/d', sig: '0.05' }
         ];
         return levels.map(l => `
             <div class="threshold-card border-${l.id}" style="height: auto; min-height: 180px;">
@@ -1125,12 +1126,15 @@ const radarAreaHtml = (tab === '雷达监测') ? `
     renderMultiSourceCards: () => {
         const metricOptions =['表面速度', '表面加速度', '应力', '深部位移'];
         const unitMap = { '表面速度':'mm/d', '表面加速度':'mm/d²', '应力':'kPa', '深部位移':'mm' };
-        const defaultMetrics = ['表面速度', '表面速度', '表面加速度', '应力'];
-        const levelIds =['blue', 'yellow', 'orange', 'red'];
-        const levelNames =['四级预警', '三级预警', '二级预警', '一级预警'];
-        const levelLabels =['蓝色', '黄色', '橙色', '红色'];
-        const defaultThres =[10, 20, 5, 10];
-        const defaultSig =['0.05', '0.001', '0.05', '0.001'];
+
+        // 修改点：将所有对应的配置数组顺序反转 (一级 -> 四级)
+        const defaultMetrics = ['应力', '表面加速度', '表面速度', '表面速度'];
+        const levelIds =['red', 'orange', 'yellow', 'blue'];
+        const levelNames =['一级预警', '二级预警', '三级预警', '四级预警'];
+        const levelLabels =['红色', '橙色', '黄色', '蓝色'];
+        const defaultThres =[10, 5, 20, 10];
+        const defaultSig =['0.001', '0.05', '0.001', '0.05'];
+
         let html = '';
         for (let idx = 0; idx < 4; idx++) {
             html += `

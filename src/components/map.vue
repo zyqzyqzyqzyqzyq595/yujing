@@ -1299,18 +1299,18 @@ const dashModule = {
     const online = scopeMetas.filter((n) => n.isOnline).length;
     const offline = scopeMetas.length - online;
     const chart = echarts.init(el);
-    chart.setOption({
+chart.setOption({
       title: {
         text: scopeMetas.length,
         subtext: '设备总数',
         left: 'center',
-        top: '35%',
+        top: '25%', // ⬅️ 修改1：标题同步向上微调，保持在圆环正中心 (原为 35%)
         textStyle: { fontSize: 18, color: '#1c3d90', fontWeight: 'bold' },
         subtextStyle: { fontSize: 10, color: '#999', verticalAlign: 'top' },
       },
       tooltip: { show: false },
       legend: {
-        bottom: '2',
+        bottom: '0', // ⬅️ 修改2：图例贴底
         icon: 'circle',
         itemWidth: 8,
         textStyle: { fontSize: 9 },
@@ -1320,8 +1320,8 @@ const dashModule = {
       series:[
         {
           type: 'pie',
-          radius: ['45%', '65%'],
-          center:['50%', '45%'],
+          radius: ['50%', '70%'], // ⬅️ 修改3：放大环形图 (原为 ['45%', '65%'])
+          center:['50%', '35%'],  // ⬅️ 修改4：将饼图中心向上平移，从而拉开与底部图例的距离 (原为 ['50%', '45%'])
           avoidLabelOverlap: false,
           label: { show: false },
           data:[
@@ -1331,7 +1331,8 @@ const dashModule = {
         },
       ],
     });
-chart.on('click', (params) => {
+
+    chart.on('click', (params) => {
   if (params.name === '离线') this.showOfflineModal(scopeMetas.filter((n) => !n.isOnline), true); // 传入 true，表示不修改地图状态
 });
   },
@@ -1362,18 +1363,18 @@ chart.on('click', (params) => {
         break;
       }
     }
-    chart.setOption({
+chart.setOption({
       title: {
         text: displayCount,
         subtext: displayLabel,
         left: 'center',
-        top: '35%',
+        top: '25%', // ⬅️ 修改1：标题同步向上微调 (原为 35%)
         textStyle: { fontSize: 18, color: displayColor, fontWeight: 'bold' },
         subtextStyle: { fontSize: 10, color: '#999', verticalAlign: 'top' },
       },
       tooltip: { show: false },
       legend: {
-        bottom: '2',
+        bottom: '0', // ⬅️ 修改2：图例贴底
         icon: 'circle',
         itemWidth: 8,
         textStyle: { fontSize: 8 },
@@ -1383,11 +1384,11 @@ chart.on('click', (params) => {
           return `${name}  ${counts[idx]}`;
         },
       },
-      series: [
+      series:[
         {
           type: 'pie',
-          radius:['45%', '65%'],
-          center: ['50%', '45%'],
+          radius:['50%', '70%'], // ⬅️ 修改3：放大环形图 (原为['45%', '65%'])
+          center: ['50%', '35%'], // ⬅️ 修改4：将饼图中心向上平移，拉开与图例的距离 (原为['50%', '45%'])
           label: { show: false },
           data: alarmNames.map((name, i) => ({
             value: counts[i],
@@ -1397,7 +1398,8 @@ chart.on('click', (params) => {
         },
       ],
     });
-    chart.on('click', (params) => {
+
+        chart.on('click', (params) => {
       const targetIdx = params.dataIndex;
       if (targetIdx === 4) return;
       mapModule.isDetailMode = true;
@@ -3409,7 +3411,8 @@ input[type="datetime-local"].map-btn {
 .dash-title {
     font-size: 13px;
     font-weight: bold;
-    margin-bottom: 12px;
+    margin-top: 0px;       /* ⬅️ 新增：去掉可能存在的默认上边距 */
+    margin-bottom: 4px;    /* ⬅️ 修改：将原来的 12px 改小为 4px，拉近标题和下方图表的距离 */
     border-left: 4px solid #1c3d90;
     padding-left: 10px;
     color: var(--text-primary);
