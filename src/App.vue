@@ -23,7 +23,7 @@ import WorkOrder from './views/2_WorkOrder/2_WorkOrder.vue';
 import DecisionSupport from './views/3_DecisionSupport/3_DecisionSupport.vue';
 import EmergencyPlan from './views/4_EmergencyPlan.vue';
 import DeviceLinkage from './views/5_DeviceLinkage.vue';
-import Evaluation from './views/6_Evaluation.vue';
+import Evaluation from './views/2_WorkOrder/6_Evaluation.vue';
 
 const components = {
   dashboard: Dashboard,

@@ -638,7 +638,25 @@ export default {
                 }
             }
         ]);
+
+        const WORKORDER_STATS_KEY = 'slope_warning_workorder_stats';
+
+        const syncWorkOrderStats = () => {
+            const payload = {
+                updatedAt: new Date().toISOString(),
+                records: JSON.parse(JSON.stringify(tableData.value || []))
+            };
+
+            localStorage.setItem(WORKORDER_STATS_KEY, JSON.stringify(payload));
+            window.dispatchEvent(
+                new CustomEvent('workorder-stats-updated', {
+                    detail: payload
+                })
+            );
+        };
+
         selectedRecord.value = tableData.value[0] || null;
+        syncWorkOrderStats();
 
         const ensureArchiveInfoReady = (record) => {
             if (!record) return;
@@ -737,6 +755,8 @@ export default {
             record.status = '已完成';
             record.isClosed = '是';
             record.opinion = `归档完成：${archiveForm.reviewResult.trim()}`;
+
+            syncWorkOrderStats();
 
             activeTimelineModal.value = null;
             window.alert('跟踪归档已完成，当前预警已闭环。');
@@ -851,6 +871,8 @@ export default {
             record.currentStep = 'archive';
             record.status = '待归档';
             record.opinion = `隐患处理完成：${processForm.result.trim()}`;
+
+            syncWorkOrderStats();
 
             activeTimelineModal.value = null;
             window.alert('隐患处理已保存，流程已进入跟踪归档。');
@@ -1446,8 +1468,8 @@ export default {
                 ruleForm.selectedPersonIds = ruleForm.selectedPersonIds.filter(id => !personIds.includes(id));
                 ruleForm.selectedRoleIds = ruleForm.selectedRoleIds.filter(id => !roleIds.includes(id));
             } else {
-                ruleForm.selectedPersonIds = [...new Set([...ruleForm.selectedPersonIds, ...personIds])];
-                ruleForm.selectedRoleIds = [...new Set([...ruleForm.selectedRoleIds, ...roleIds])];
+                ruleForm.selectedRoleIds = [...(rule.selectedRoleIds || [])];
+                ruleForm.selectedPersonIds = [...(rule.selectedPersonIds || [])];
             }
         };
         const isRoleAllPersonsSelected = (roleId) => {
@@ -1962,6 +1984,7 @@ export default {
                 // 10）表格里的处理意见同步更新
                 record.opinion = '主管确认有效，已按通知规则自动完成推送';
             }
+            syncWorkOrderStats();
 
             activeTimelineModal.value = null;
             window.alert(decision === 'false_alarm' ? '已判定为误报，流程已归档。' : '已确认有效预警，进入自动推送环节。');
@@ -2127,6 +2150,8 @@ export default {
             tableData.value.unshift(newRecord);
             selectedRecord.value = newRecord;
 
+            syncWorkOrderStats();
+
             showModal.value = false;
 
             formData.time = '';
@@ -2239,6 +2264,8 @@ export default {
                 }
             }
 
+            syncWorkOrderStats();
+
             window.alert('预警记录已删除');
         };
         const getRuleSignatureByLevel = (levelClass) => {
@@ -2286,7 +2313,10 @@ export default {
             record.pushInfo = latestPushInfo;
         };
 
+
         return {
+            WORKORDER_STATS_KEY,
+
             deleteWorkOrder,
 
             getStepOrder,
