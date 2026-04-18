@@ -15,25 +15,59 @@
       <div class="chart-card">
         <div class="chart-title">一级预警 (次)</div>
         <div ref="chartLevel1" class="echart-box"></div>
+        <div class="data-list">
+          <div class="list-item" v-for="(item, index) in getTopList(chartDataLevel1)" :key="index">
+            <span class="rank" :class="'rank-' + (index + 1)">{{ index + 1 }}</span>
+            <span class="name">{{ item.name }}</span>
+            <span class="value">{{ item.value }}</span>
+          </div>
+        </div>
       </div>
       <div class="chart-card">
         <div class="chart-title">二级预警 (次)</div>
         <div ref="chartLevel2" class="echart-box"></div>
+        <div class="data-list">
+          <div class="list-item" v-for="(item, index) in getTopList(chartDataLevel2)" :key="index">
+            <span class="rank" :class="'rank-' + (index + 1)">{{ index + 1 }}</span>
+            <span class="name">{{ item.name }}</span>
+            <span class="value">{{ item.value }}</span>
+          </div>
+        </div>
       </div>
       <div class="chart-card">
         <div class="chart-title">三级预警 (次)</div>
         <div ref="chartLevel3" class="echart-box"></div>
+        <div class="data-list">
+          <div class="list-item" v-for="(item, index) in getTopList(chartDataLevel3)" :key="index">
+            <span class="rank" :class="'rank-' + (index + 1)">{{ index + 1 }}</span>
+            <span class="name">{{ item.name }}</span>
+            <span class="value">{{ item.value }}</span>
+          </div>
+        </div>
       </div>
       <div class="chart-card">
         <div class="chart-title">四级预警 (次)</div>
         <div ref="chartLevel4" class="echart-box"></div>
+        <div class="data-list">
+          <div class="list-item" v-for="(item, index) in getTopList(chartDataLevel4)" :key="index">
+            <span class="rank" :class="'rank-' + (index + 1)">{{ index + 1 }}</span>
+            <span class="name">{{ item.name }}</span>
+            <span class="value">{{ item.value }}</span>
+          </div>
+        </div>
       </div>
       <div class="chart-card focus-card">
         <div class="chart-title">关注矿区重点风险区域</div>
         <div ref="chartFocusArea" class="echart-box"></div>
+        <div class="data-list">
+          <div class="list-item" v-for="(item, index) in getTopList(chartDataFocus)" :key="index">
+            <span class="rank" :class="'rank-' + (index + 1)">{{ index + 1 }}</span>
+            <span class="name">{{ item.name }}</span>
+            <span class="value">{{ item.value }}</span>
+          </div>
+        </div>
       </div>
     </div>
-
     <div class="kpi-container">
       <div class="kpi-card">
         <div class="kpi-top">
@@ -69,31 +103,41 @@
       </div>
 
       <div class="kpi-card">
-        <div class="kpi-header">成功率</div>
+        <div class="kpi-top">
+          <div class="kpi-header">成功率</div>
+          <div class="kpi-actions">
+            <button class="mini-action-btn" type="button" @click="downloadSuccessRate">数据下载</button>
+          </div>
+        </div>
         <div class="kpi-value success-text">{{ kpiData.successRate }}%</div>
         <div class="kpi-desc">预警触发且现场有对应的宏观现象</div>
       </div>
 
       <div class="kpi-card" title="【评价标准】管理效能与执行力指标。3.2h在大型矿山中表现良好。若想进一步压缩时长，可结合左侧“闭环处置效率”列表，对标记为“可优化”的环节进行定向提效。">
-        <div class="kpi-header">平均闭环处置时间</div>
+        <div class="kpi-top">
+          <div class="kpi-header">平均闭环处置时间</div>
+          <div class="kpi-actions">
+            <button class="mini-action-btn" type="button" @click="downloadAvgTime">数据下载</button>
+          </div>
+        </div>
         <div class="kpi-value info-text">{{ kpiData.avgCloseTime }} <span class="unit">h</span></div>
         <div class="kpi-desc">预警发出到隐患关闭的平均时长</div>
       </div>
     </div>
-
     <div class="subtitle-bar">漏报以及误报率针对一级、二级预警</div>
 
     <div class="bottom-container">
       <div class="panel-card half-width">
         <div class="panel-header">
           <div class="panel-title">闭环处置效率</div>
-          <div class="panel-action">
+          <div class="panel-action" style="display: flex; gap: 10px; align-items: center;">
             <select v-model="selectedAlertLevel" @change="updateDisposalData" class="level-select">
               <option value="1">一级预警</option>
               <option value="2">二级预警</option>
               <option value="3">三级预警</option>
               <option value="4">四级预警</option>
             </select>
+            <button class="mini-action-btn" type="button" @click="downloadDisposalData">数据下载</button>
           </div>
         </div>
         <div class="panel-subtitle">关注预警发出、任务下达、现场反馈和隐患关闭全过程。</div>
@@ -116,7 +160,10 @@
       <div class="panel-card half-width">
         <div class="panel-header">
           <div class="panel-title">多维度评估分析 <span style="font-size: 13px; font-weight: normal; color: #666; margin-left: 5px;">(各区域成功率)</span></div>
-          <div class="panel-subtitle" style="margin-left: auto;">支持按照时间、区域等维度查看系统运行表现。</div>
+          <div class="panel-action" style="margin-left: auto; display: flex; align-items: center; gap: 10px;">
+            <div class="panel-subtitle" style="margin: 0;">支持按照时间、区域等维度查看系统运行表现。</div>
+            <button class="mini-action-btn" type="button" @click="downloadRegionStats">数据下载</button>
+          </div>
         </div>
 
         <div class="progress-list">
@@ -223,7 +270,24 @@ const chartFocusArea = ref(null);
 const selectedDate = ref('2026-04'); // 默认选中时间
 const selectedAlertLevel = ref('1'); // 默认选中一级预警图表
 let chartInstances = [];
+// 新增：图表对应的响应式数据（用于滚动显示）
+const chartDataLevel1 = ref([]);
+const chartDataLevel2 = ref([]);
+const chartDataLevel3 = ref([]);
+const chartDataLevel4 = ref([]);
+const chartDataFocus = ref([]);
 
+// 新增：将图表数据格式化为滚动文本格式
+// 新增：将图表数据格式化为滚动文本格式 (优化标签，方便CSS高亮)
+// 新增：将图表数据格式化为滚动文本格式
+// 新增：将图表数据格式化为滚动文本格式 (优化标签，方便CSS高亮)
+// 新增：将图表数据格式化为前三名列表展示数据
+// 修改：将图表数据格式化为完整列表展示数据（按数值从大到小排序）
+const getTopList = (data) => {
+  if (!data || data.length === 0) return [];
+  // 提取全部数据并按数值倒序排列
+  return data.slice().sort((a, b) => b.value - a.value);
+};
 // 右下角：区域成功率数据 (初始数据计算均值为 87.3)
 const regionSuccessRates = ref([
   { region: '东帮', rate: 88 },
@@ -419,6 +483,58 @@ const downloadMissEvents = () => {
 const downloadFalseEvents = () => {
   exportEventsToExcel('误报事件台账', falseEventList.value);
 };
+// 新增：通用数组导出Excel功能
+const exportGenericToExcel = (sheetName, headers, rows) => {
+  const htmlRows = rows.map(item => `
+    <tr>
+      ${item.map(val => `<td>${escapeHtml(val || '')}</td>`).join('')}
+    </tr>
+  `).join('');
+
+  const html = `
+    <html xmlns:o="urn:schemas-microsoft-com:office:office"
+          xmlns:x="urn:schemas-microsoft-com:office:excel"
+          xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="UTF-8" />
+      </head>
+      <body>
+        <table border="1">
+          <tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>
+          ${htmlRows}
+        </table>
+      </body>
+    </html>
+  `;
+
+  const blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `${sheetName}.xls`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(link.href);
+};
+
+// 新增：4个具体的数据下载方法
+const downloadSuccessRate = () => {
+  exportGenericToExcel('成功率统计', ['评估时间', '成功率(%)'], [[selectedDate.value, kpiData.value.successRate]]);
+};
+
+const downloadAvgTime = () => {
+  exportGenericToExcel('平均闭环处置时间', ['评估时间', '平均闭环时间(h)'], [[selectedDate.value, kpiData.value.avgCloseTime]]);
+};
+
+const downloadDisposalData = () => {
+  const rows = currentDisposalData.value.map(item => [item.step, item.time, item.status]);
+  exportGenericToExcel(`闭环处置效率-${selectedAlertLevel.value}级预警`, ['环节', '平均时长', '状态'], rows);
+};
+
+const downloadRegionStats = () => {
+  const rows = regionSuccessRates.value.map(item => [item.region, item.rate]);
+  exportGenericToExcel('区域成功率分析', ['区域', '成功率(%)'], rows);
+};
 const exportEventsToExcel = (sheetName, rows) => {
   const headers = ['时间', '区域', '位置', '录入人', '事件描述', '现场照片'];
 
@@ -518,15 +634,24 @@ const initDonutChart = (domRef, color, data, name) => {
 };
 
 // 初始化所有图表
+// 替换：修改原有的 initAllCharts，使其把数据赋值给上方的响应式变量
 const initAllCharts = () => {
   chartInstances.forEach(chart => chart.dispose());
   chartInstances = [];
 
-  initDonutChart(chartLevel1, '#f5222d', generatePieData(equipmentTypes), '一级预警'); // 红
-  initDonutChart(chartLevel2, '#fa8c16', generatePieData(equipmentTypes), '二级预警'); // 橙
-  initDonutChart(chartLevel3, '#faad14', generatePieData(equipmentTypes), '三级预警'); // 黄
-  initDonutChart(chartLevel4, '#1890ff', generatePieData(equipmentTypes), '四级预警'); // 蓝
-  initDonutChart(chartFocusArea, '#333333', generatePieData(regionTypes), '风险区域'); // 黑
+  // 1. 生成并保存数据
+  chartDataLevel1.value = generatePieData(equipmentTypes);
+  chartDataLevel2.value = generatePieData(equipmentTypes);
+  chartDataLevel3.value = generatePieData(equipmentTypes);
+  chartDataLevel4.value = generatePieData(equipmentTypes);
+  chartDataFocus.value = generatePieData(regionTypes);
+
+  // 2. 渲染图表
+  initDonutChart(chartLevel1, '#f5222d', chartDataLevel1.value, '一级预警'); // 红
+  initDonutChart(chartLevel2, '#fa8c16', chartDataLevel2.value, '二级预警'); // 橙
+  initDonutChart(chartLevel3, '#faad14', chartDataLevel3.value, '三级预警'); // 黄
+  initDonutChart(chartLevel4, '#1890ff', chartDataLevel4.value, '四级预警'); // 蓝
+  initDonutChart(chartFocusArea, '#333333', chartDataFocus.value, '风险区域'); // 黑
 };
 
 // 触发数据更新(时间筛选改变时)
@@ -567,7 +692,48 @@ const handleResize = () => {
 const handleWorkOrderStatsUpdated = () => {
   syncFalseAlarmStatsFromWorkOrder();
 };
+// ================= 新增：列表竖向自动滚动逻辑 =================
+const initAutoScroll = () => {
+  nextTick(() => {
+    // 获取所有的列表容器
+    const lists = document.querySelectorAll('.data-list');
+    lists.forEach(el => {
+      // 定义每次滚动的行为
+      const doScroll = () => {
+        // 如果数据不够长，没有产生滚动条，就不执行滚动
+        if (el.scrollHeight <= el.clientHeight) return;
 
+        // 判断是否滚动到了最底部 (Math.ceil 处理部分浏览器的像素小数误差)
+        if (Math.ceil(el.scrollTop) + el.clientHeight >= el.scrollHeight) {
+          el.scrollTop = 0; // 瞬间回到顶部，形成循环
+        } else {
+          el.scrollTop += 1; // 每次往下滚 1 像素
+        }
+      };
+
+      // 设定定时器，每 50ms 触发一次滚动 (如果觉得快了，把 50 改成 80 或 100)
+      el._scrollTimer = setInterval(doScroll, 50);
+
+      // 鼠标悬停时：清除定时器，暂停滚动方便查看数据
+      el.addEventListener('mouseenter', () => {
+        if (el._scrollTimer) clearInterval(el._scrollTimer);
+      });
+
+      // 鼠标移出时：重新启动定时器，继续滚动
+      el.addEventListener('mouseleave', () => {
+        el._scrollTimer = setInterval(doScroll, 50);
+      });
+    });
+  });
+};
+
+const clearAutoScroll = () => {
+  const lists = document.querySelectorAll('.data-list');
+  lists.forEach(el => {
+    if (el._scrollTimer) clearInterval(el._scrollTimer);
+  });
+};
+// ==============================================================
 onMounted(() => {
   updateMissRate();
   syncFalseAlarmStatsFromWorkOrder();
@@ -575,6 +741,9 @@ onMounted(() => {
   window.addEventListener('resize', handleResize);
   window.addEventListener('workorder-stats-updated', handleWorkOrderStatsUpdated);
   window.addEventListener('storage', handleWorkOrderStatsUpdated);
+
+  // 新增：界面加载完成后启动竖向自动滚动
+  initAutoScroll();
 });
 
 onUnmounted(() => {
@@ -582,6 +751,9 @@ onUnmounted(() => {
   window.removeEventListener('workorder-stats-updated', handleWorkOrderStatsUpdated);
   window.removeEventListener('storage', handleWorkOrderStatsUpdated);
   chartInstances.forEach(chart => chart.dispose());
+
+  // 新增：离开页面时清除所有的滚动定时器，防止内存泄漏
+  clearAutoScroll();
 });
 </script>
 
@@ -595,7 +767,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  gap: 15px;
+  gap: 20px; /* 【关键】：改回固定间距，彻底干掉那两道红色的巨大留白 */
   font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
 
@@ -644,11 +816,18 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   gap: 15px;
-  height: 160px;
+  height: 350px; /* 【极致加高】：直接加高到 350px，霸占视觉重心 */
+  flex-shrink: 0;
+}
+
+.echart-box {
+  width: 100%;
+  height: 200px; /* 【调小】：从 260px 缩小到 200px，让饼图恢复精致感，不再溢出 */
   flex-shrink: 0;
 }
 .chart-card {
   flex: 1;
+  min-width: 0; /* 【最关键的修复】强制允许卡片缩小，防止被内部的超长滚动文本撑宽 */
   background: #fff;
   border: 1px solid #dcdfe6;
   border-radius: 6px;
@@ -656,6 +835,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: space-between;
   box-shadow: 0 2px 12px 0 rgba(0,0,0,0.05);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
@@ -672,18 +852,17 @@ onUnmounted(() => {
   color: #333;
   margin-bottom: 5px;
   text-align: center;
-}
-.echart-box {
-  width: 100%;
-  flex: 1;
-  min-height: 0;
+  flex-shrink: 0;
 }
 
+/* 替换原有的 .kpi-container 样式 */
+/* 替换原有的 .kpi-container 样式 */
+/* 替换原有的 .kpi-container 样式 */
 .kpi-container {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 15px;
-  height: 100px;
+  height: 160px; /* 【加高】：从 130px 加大到 160px，让卡片更修长饱满 */
   flex-shrink: 0;
 }
 .kpi-card {
@@ -703,9 +882,9 @@ onUnmounted(() => {
   font-weight: bold;
 }
 .kpi-value {
-  font-size: 26px;
+  font-size: 32px; /* 【变大】：把数字字号从26px加大到32px，让卡片看起来不空旷 */
   font-weight: bold;
-  margin-bottom: 2px;
+  margin-bottom: 6px;
   font-family: Arial, sans-serif;
 }
 .warning-text { color: #f5222d; }
@@ -786,8 +965,10 @@ onUnmounted(() => {
 .process-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
   flex: 1;
+  /* 【关键修改】：删掉 justify-content: space-between; */
+  gap: 16px; /* 【新增】：设定一个固定的、正常的行间距 */
+  margin-top: 15px; /* 距离顶部标题稍微留点呼吸空间 */
 }
 
 /* ================== 新增：闭环处置表头样式 ================== */
@@ -809,7 +990,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px dashed #ebeef5;
-  padding-bottom: 8px;
+  padding-bottom: 12px; /* 【改大】：单行底部留白从 8px 增至 12px */
 }
 .step-name { width: 30%; color: #666; font-size: 13px; font-weight: bold; }
 .step-time { width: 40%; color: #333; font-size: 13px; text-align: center; font-weight: bold; }
@@ -831,9 +1012,11 @@ onUnmounted(() => {
 .progress-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-bottom: 15px;
   flex: 1;
+  /* 【关键修改】：删掉 justify-content: space-between; */
+  gap: 24px; /* 【新增】：因为进度条比较粗，设定一个稍微大一点的固定正常间距 */
+  margin-top: 20px;
+  margin-bottom: 20px;
 }
 .progress-item {
   display: flex;
@@ -847,9 +1030,9 @@ onUnmounted(() => {
 }
 .progress-bar-bg {
   flex: 1;
-  height: 8px;
+  height: 16px; /* 【加粗】：把进度条高度从12px再加粗到16px，更显饱满 */
   background: #ebeef5;
-  border-radius: 4px;
+  border-radius: 8px;
   margin: 0 15px;
   overflow: hidden;
 }
@@ -1035,6 +1218,76 @@ onUnmounted(() => {
 .primary-btn {
   background: #1c3d90;
   color: #fff;
+}
+/* 新增：滚动信息样式 */
+/* 新增：滚动信息样式 */
+/* 替换原滚动信息样式为：底部列表样式 */
+/* 替换原滚动信息样式为：底部列表样式 */
+/* 替换原滚动信息样式为：底部列表样式 */
+.data-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px; /* 列表项间距 */
+  margin-top: 5px;
+  padding-top: 10px;
+  border-top: 1px solid #ebeef5;
+  flex: 1;
+  overflow-y: auto; /* 新增：数据过多时允许内部滚动 */
+  padding-right: 4px; /* 给滚动条留出一点呼吸空间 */
+}
+
+/* 新增：美化内部滚动条，让它看起来更精致小巧 */
+.data-list::-webkit-scrollbar {
+  width: 4px;
+}
+.data-list::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 2px;
+}
+.data-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.list-item {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  color: #666;
+  width: 100%;
+}
+
+.rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  background-color: #f0f2f5;
+  color: #999;
+  font-size: 11px;
+  margin-right: 8px;
+  font-weight: bold;
+}
+
+/* 前三名排位高亮色 */
+.rank-1 { background-color: #f5222d; color: #fff; }
+.rank-2 { background-color: #fa8c16; color: #fff; }
+.rank-3 { background-color: #faad14; color: #fff; }
+
+.name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.value {
+  font-weight: bold;
+  color: #1c3d90;
+  font-size: 14px;
+  margin-left: 10px;
 }
 </style>
 ```
